@@ -4,318 +4,375 @@
   <meta charset="UTF-8" />
   <title>MoW 2 Draft Project</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="icon" href="favicon.ico" />
   <link rel="stylesheet" href="style.css" />
-  <!-- Supabase UMD, глобальный объект window.supabase -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="icon" type="image/x-icon" href="favicon.ico" />
 </head>
 <body>
   <div class="app">
-    <header class="app-header">
-      <h1>MoW 2 Draft Project</h1>
-      <p>Драфт-комбайн для Men of War II: оффлайн, онлайн, комнаты и ИИ.</p>
-    </header>
+    <div class="app-header">
+      <div class="logo-title">
+        <div class="logo-circle">M2</div>
+        <div>
+          <h1>MoW 2 Draft Project</h1>
+          <p class="subtitle">Онлайн и оффлайн драфт для Men of War II</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <span class="version-tag">V10 (Supabase)</span>
+      </div>
+    </div>
 
-    <main>
-      <!-- ГЛАВНОЕ МЕНЮ -->
+    <div class="app-body">
+      <!-- Главное меню -->
       <section id="screen-menu" class="screen">
         <div class="menu-grid">
           <button class="menu-card" data-target="offline">
-            <h2>Оффлайн-драфт</h2>
-            <p>Локальный драфт 5x5. Настройки ИИ и игроков только для тебя.</p>
+            <h2>Оффлайн драфт</h2>
+            <p>Я против ИИ, ИИ против ИИ или ручной драфт на одной машине.</p>
           </button>
-
           <button class="menu-card" data-target="online">
-            <h2>Онлайн-драфт (Supabase)</h2>
-            <p>Комнаты, капитаны, зрители и синхронизация драфта в реальном времени.</p>
+            <h2>Онлайн драфт</h2>
+            <p>Комнаты, два капитана, зрители. Supabase Realtime.</p>
           </button>
-
           <button class="menu-card" data-target="players">
             <h2>Игроки и статистика</h2>
-            <p>Просмотр и редактирование локальной базы игроков (MMR, урон, роли).</p>
+            <p>Редактирование ММР, ролей и DPM. Импорт/экспорт JSON.</p>
           </button>
-
           <button class="menu-card" data-target="admin">
             <h2>Админ-панель</h2>
-            <p>Глобальная база игроков (Supabase). Только по админ-паролю.</p>
+            <p>Глобальная база и ИИ-стратегии (только по паролю).</p>
           </button>
         </div>
       </section>
 
-      <!-- ОФФЛАЙН-ДРАФТ -->
+      <!-- Оффлайн драфт -->
       <section id="screen-offline" class="screen hidden">
-        <button class="back-btn" data-back>&larr; Назад</button>
-        <h2>Оффлайн-драфт 5x5</h2>
+        <div class="screen-header">
+          <h2>Оффлайн драфт</h2>
+          <button class="back-btn" data-back>Назад в меню</button>
+        </div>
 
-        <div class="offline-row">
+        <div class="card-row">
           <div class="card">
-            <h3>Шаг 1. Карта</h3>
-            <select id="offline-map-select"></select>
+            <h3>Шаг 1. Настройки матча</h3>
+            <div class="form-row">
+              <label for="offline-map-select">Карта</label>
+              <select id="offline-map-select"></select>
+            </div>
+            <div class="form-row">
+              <label for="offline-mode-select">Режим драфта</label>
+              <select id="offline-mode-select">
+                <option value="human_vs_ai">Я против ИИ</option>
+                <option value="ai_vs_ai">ИИ против ИИ</option>
+                <option value="manual">Драфт самостоятельный</option>
+              </select>
+            </div>
+            <div class="form-row" id="offline-human-side-row">
+              <label for="offline-human-side">За кого играешь ты</label>
+              <select id="offline-human-side">
+                <option value="team1">Команда 1</option>
+                <option value="team2">Команда 2</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label for="offline-ai-strategy">Стратегия ИИ</label>
+              <select id="offline-ai-strategy">
+                <option value="balanced">Сбалансированная</option>
+                <option value="infantry_focus">Фокус на пехоте</option>
+                <option value="motorized_focus">Фокус на мотопехоте</option>
+                <option value="tanks_focus">Фокус на танках</option>
+                <option value="artillery_focus">Фокус на арте</option>
+                <option value="max_dpm">Максимум DPM</option>
+                <option value="counter_enemy">Контрпик по ролям</option>
+              </select>
+            </div>
           </div>
 
           <div class="card">
             <h3>Шаг 2. Пул игроков</h3>
-            <p class="hint">Выбери игроков, которые участвуют в матче.</p>
-            <div class="pool-controls">
+            <div class="btn-row">
               <button id="offline-pool-all">Все игроки</button>
-              <button id="offline-pool-top20">Топ-20 по MMR</button>
-              <button id="offline-pool-clear">Очистить пул</button>
+              <button id="offline-pool-top20">Топ-20 по ММР</button>
+              <button id="offline-pool-clear">Очистить</button>
             </div>
-            <div id="offline-pool-list" class="scroll-list"></div>
+            <div id="offline-pool-list" class="scroll-panel"></div>
+            <div id="offline-error" class="error-text"></div>
+            <button id="offline-start-draft" class="primary-btn full-width">
+              Запустить драфт
+            </button>
           </div>
         </div>
 
         <div class="card">
-          <h3>Шаг 3. Стратегия ИИ</h3>
-          <p class="hint">Стратегия влияет на приоритет ролей (пехота, мотопехота, танки, арта и т.д.) при подсказках ИИ.</p>
-          <div class="form-row">
-            <label>Упор по ролям</label>
-            <select id="offline-ai-strategy">
-              <option value="balanced">Сбалансированный</option>
-              <option value="infantry_focus">Упор на пехоту / штурмовую</option>
-              <option value="motorized_focus">Упор на мотопехоту и мобильность</option>
-              <option value="tanks_focus">Упор на танки / тяжёлые танки</option>
-              <option value="artillery_focus">Упор на артиллерию / ПТО / ПВО</option>
-            </select>
+          <div class="card-header-row">
+            <h3>Шаг 3. Ход драфта</h3>
+            <div id="offline-pick-order" class="pick-order-row"></div>
           </div>
-        </div>
-
-        <div class="card">
-          <h3>Шаг 4. Запуск драфта</h3>
-          <p class="hint">Порядок пиков: 1 (К1) → 2 (К2) → 3 (К2) → 4 (К1) → 5 (К1) → 6 (К2) → 7 (К1) → 8 (К2).</p>
-          <button id="offline-start-draft" class="primary">Начать драфт</button>
-          <span id="offline-error" class="error"></span>
-        </div>
-
-        <div class="card">
-          <h3>Шаг 5. Драфт</h3>
-          <div id="offline-pick-order" class="pick-order"></div>
           <div class="draft-layout">
             <div class="team-column">
               <h4>Команда 1</h4>
-              <ul id="offline-team1"></ul>
+              <ul id="offline-team1" class="team-list"></ul>
             </div>
-            <div class="team-column">
+            <div class="center-column">
               <h4>Доступные игроки</h4>
-              <div id="offline-available" class="scroll-list"></div>
+              <div id="offline-available" class="scroll-panel tall"></div>
             </div>
             <div class="team-column">
               <h4>Команда 2</h4>
-              <ul id="offline-team2"></ul>
+              <ul id="offline-team2" class="team-list"></ul>
             </div>
           </div>
-          <div id="offline-suggestions" class="suggestions"></div>
+          <div id="offline-suggestions" class="hint-block"></div>
         </div>
 
         <div class="card">
-          <h3>Шаг 6. Экспорт результата</h3>
-          <button id="offline-export-btn">Скопировать текст</button>
-          <textarea id="offline-export-output" rows="8"></textarea>
+          <h3>Шаг 4. Экспорт результата</h3>
+          <button id="offline-export-btn">Сформировать текст</button>
+          <textarea id="offline-export-output" rows="5" class="export-area"></textarea>
         </div>
       </section>
 
-      <!-- ОНЛАЙН-ДРАФТ -->
-      <section id="screen-online" class="screen hidden">
-        <button class="back-btn" data-back>&larr; Назад</button>
-        <h2>Онлайн-драфт (Supabase)</h2>
-
-        <div class="card">
-          <h3>Подключение</h3>
-          <div class="form-row">
-            <label>Твой ник</label>
-            <input type="text" id="online-nickname" placeholder="Saadness" />
-          </div>
-          <div class="online-connect">
-            <div class="online-block">
-              <h4>Создать комнату</h4>
-              <p class="hint">Лимит: не более 50 комнат в системе. Если лимит достигнут, нужно удалить/очистить старые комнаты.</p>
-              <div class="form-row">
-                <label>Пароль комнаты (опционально)</label>
-                <input type="password" id="online-create-password" />
-              </div>
-              <button id="online-create-room" class="primary">Создать комнату</button>
-              <div id="online-create-result" class="hint"></div>
-            </div>
-
-            <div class="online-block">
-              <h4>Войти в комнату</h4>
-              <div class="form-row">
-                <label>Код комнаты</label>
-                <input type="text" id="online-join-code" placeholder="AB12" />
-              </div>
-              <div class="form-row">
-                <label>Пароль (если есть)</label>
-                <input type="password" id="online-join-password" />
-              </div>
-              <button id="online-join-room">Войти</button>
-              <div id="online-join-result" class="hint"></div>
-            </div>
-          </div>
-        </div>
-
-        <div id="online-room-section" class="card hidden">
-          <div class="online-room-header">
-            <div>
-              <h3>Комната: <span id="online-room-code"></span></h3>
-              <p>Роль: <span id="online-my-role"></span></p>
-              <p>Статус матча: <span id="online-match-status"></span></p>
-            </div>
-          </div>
-
-          <div class="online-main">
-            <div class="online-side">
-              <h4>Участники комнаты</h4>
-              <div id="online-participants" class="scroll-list small"></div>
-              <div id="online-creator-panel" class="creator-panel hidden"></div>
-            </div>
-
-            <div class="online-side">
-              <h4>Матч и драфт</h4>
-
-              <div class="form-row">
-                <label>Карта</label>
-                <select id="online-map-select"></select>
-              </div>
-
-              <div class="form-row">
-                <label>Режим матча</label>
-                <select id="online-mode-select">
-                  <option value="human_vs_human">Стандартный: Капитан 1 vs Капитан 2</option>
-                  <option value="human_vs_ai">Капитан 1 vs ИИ (Команда 2)</option>
-                  <option value="ai_vs_ai">ИИ vs ИИ (полностью авто-драфт)</option>
-                </select>
-              </div>
-
-              <div class="form-row">
-                <label>Стратегия ИИ (для подсказок и авто-пиков)</label>
-                <select id="online-ai-strategy">
-                  <option value="balanced">Сбалансированный</option>
-                  <option value="infantry_focus">Упор на пехоту / штурмовую</option>
-                  <option value="motorized_focus">Упор на мотопехоту и мобильность</option>
-                  <option value="tanks_focus">Упор на танки / тяжёлые танки</option>
-                  <option value="artillery_focus">Упор на артиллерию / ПТО / ПВО</option>
-                </select>
-              </div>
-
-              <p class="hint">
-                В стандартном режиме оба капитана пикнут вручную, ИИ подсказывает только тому, у кого сейчас ход.
-                В режимах с ИИ автоматические пики делает браузер создателя комнаты.
-              </p>
-
-              <button id="online-start-draft" class="primary">Начать / передрафтить</button>
-              <span id="online-error" class="error"></span>
-
-              <div class="online-draft hidden" id="online-draft-block">
-                <p class="hint">
-                  Порядок пиков: 1 (К1) → 2 (К2) → 3 (К2) → 4 (К1) → 5 (К1) → 6 (К2) → 7 (К1) → 8 (К2).
-                </p>
-                <div id="online-pick-order" class="pick-order"></div>
-                <div class="draft-layout">
-                  <div class="team-column">
-                    <h4>Команда 1</h4>
-                    <ul id="online-team1"></ul>
-                  </div>
-                  <div class="team-column">
-                    <h4>Доступные игроки (кликабельны, если сейчас твой ход)</h4>
-                    <div id="online-available" class="scroll-list"></div>
-                  </div>
-                  <div class="team-column">
-                    <h4>Команда 2</h4>
-                    <ul id="online-team2"></ul>
-                  </div>
-                </div>
-                <div id="online-suggestions" class="suggestions"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- ИГРОКИ / ЛОКАЛЬНАЯ БАЗА -->
+      <!-- Игроки и статистика -->
       <section id="screen-players" class="screen hidden">
-        <button class="back-btn" data-back>&larr; Назад</button>
-        <h2>Игроки и статистика (локальная база)</h2>
-
-        <div class="card">
-          <div class="form-row">
-            <label>Фильтр по имени</label>
-            <input type="text" id="players-filter-name" placeholder="Начни вводить nickname..." />
-          </div>
-          <div class="form-row">
-            <label>Фильтр по tier</label>
-            <select id="players-filter-tier">
-              <option value="">Все</option>
-              <option value="S">S</option>
-              <option value="A">A</option>
-              <option value="B">B</option>
-              <option value="C">C</option>
-              <option value="D">D</option>
-              <option value="F">F</option>
-            </select>
-          </div>
-          <div id="players-list" class="scroll-list tall"></div>
+        <div class="screen-header">
+          <h2>Игроки и статистика (локальная база)</h2>
+          <button class="back-btn" data-back>Назад в меню</button>
         </div>
 
-        <div class="card">
-          <h3>Редактирование выбранного игрока</h3>
-          <div id="player-edit-panel" class="edit-panel">
-            <p class="hint">Выбери игрока слева, чтобы редактировать.</p>
+        <div class="card-row">
+          <div class="card">
+            <h3>Фильтр</h3>
+            <div class="form-row">
+              <label for="players-filter-name">Имя</label>
+              <input id="players-filter-name" type="text" placeholder="Поиск по имени..." />
+            </div>
+            <div class="form-row">
+              <label for="players-filter-tier">Tier</label>
+              <select id="players-filter-tier">
+                <option value="">Любой</option>
+                <option value="S">S</option>
+                <option value="A">A</option>
+                <option value="B">B</option>
+                <option value="C">C</option>
+                <option value="D">D</option>
+                <option value="F">F</option>
+              </select>
+            </div>
+            <div class="btn-row">
+              <button id="players-export-local">Экспорт JSON (локальный)</button>
+              <label class="file-btn">
+                Импорт JSON
+                <input id="players-import-local" type="file" accept="application/json" hidden />
+              </label>
+            </div>
+            <div id="players-list" class="scroll-panel tall"></div>
           </div>
-        </div>
 
-        <div class="card">
-          <h3>Импорт / экспорт локальной базы</h3>
-          <div class="form-row">
-            <button id="players-export-local">Скачать локальную базу (JSON)</button>
-          </div>
-          <div class="form-row">
-            <label>Импорт локальной базы (JSON)</label>
-            <input type="file" id="players-import-local" accept="application/json" />
+          <div class="card">
+            <h3>Редактирование игрока</h3>
+            <div id="player-edit-panel" class="edit-panel">
+              <p class="hint">Выбери игрока слева, чтобы отредактировать его статистику.</p>
+            </div>
+            <p class="hint small">
+              Локальная база хранится в твоём браузере и не влияет на глобальные данные Supabase.
+              Для работы с глобальной базой используй админ-панель.
+            </p>
           </div>
         </div>
       </section>
 
-      <!-- АДМИН-ПАНЕЛЬ -->
+      <!-- Админ-панель -->
       <section id="screen-admin" class="screen hidden">
-        <button class="back-btn" data-back>&larr; Назад</button>
-        <h2>Админ-панель (глобальная база игроков Supabase)</h2>
-
-        <div class="card">
-          <h3>Вход админа</h3>
-          <p class="hint">Нужно знать админ-пароль. Он не связан с аккаунтами Supabase.</p>
-          <div class="form-row">
-            <label>Админ-пароль</label>
-            <input type="password" id="admin-password" />
-          </div>
-          <button id="admin-login-btn">Войти</button>
-          <span id="admin-login-status" class="hint"></span>
+        <div class="screen-header">
+          <h2>Админ-панель</h2>
+          <button class="back-btn" data-back>Назад в меню</button>
         </div>
 
-        <div class="card admin-actions hidden" id="admin-actions">
-          <h3>Действия с глобальной базой игроков</h3>
-          <p class="hint">Работа с таблицей <code>players_global</code> в Supabase. Админ-пароль: только свои.</p>
+        <div class="card">
+          <h3>Авторизация администратора</h3>
           <div class="form-row">
-            <button id="admin-load-global">Загрузить игроков из Supabase → в локальную базу</button>
+            <label for="admin-password">Админ-пароль</label>
+            <input id="admin-password" type="password" placeholder="введи пароль..." />
           </div>
-          <div class="form-row">
-            <button id="admin-save-global">Залить текущую локальную базу игроков → в Supabase</button>
+          <button id="admin-login-btn">Войти в админ-режим</button>
+          <div id="admin-login-status" class="hint"></div>
+        </div>
+
+        <div id="admin-actions" class="card hidden">
+          <h3>Глобальная база игроков (Supabase)</h3>
+          <div class="btn-row">
+            <button id="admin-load-global">Загрузить глобальную базу → в локальную</button>
+            <button id="admin-save-global">Сохранить локальную базу → в глобальную</button>
           </div>
           <div id="admin-actions-status" class="hint"></div>
 
-          <details class="schema-details">
-            <summary>Схема таблицы players_global (подсказка)</summary>
-            <pre>
-players_global:
-  id      uuid, primary key, default uuid_generate_v4()
-  name    text, UNIQUE
-  data    jsonb   -- объект игрока как в players.json
-            </pre>
-          </details>
+          <hr />
+
+          <h3>Стратегии ИИ (редактирование коэффициентов)</h3>
+          <p class="hint small">
+            Здесь можно править стратегии ИИ. Формат — JSON-объект вида:
+            {"balanced": {"infantry": 1.1, ...}, "infantry_focus": {...}, ...}.
+            Локально сохраняется только в этом браузере.
+          </p>
+          <textarea id="admin-strategies-json" rows="10" class="export-area"></textarea>
+          <div class="btn-row">
+            <button id="admin-strategies-load">Подгрузить текущие стратегии</button>
+            <button id="admin-strategies-save">Сохранить стратегии локально</button>
+          </div>
+
+          <hr />
+
+          <h3>Смена админ-пароля</h3>
+          <p class="hint small">
+            Сменить админ-пароль может только тот, кто знает мастер-пароль сайта.
+          </p>
+          <div class="form-row">
+            <label for="admin-master-password">Мастер-пароль сайта</label>
+            <input id="admin-master-password" type="password" placeholder="kozakuaproloh" />
+          </div>
+          <div class="form-row">
+            <label for="admin-new-password">Новый админ-пароль</label>
+            <input id="admin-new-password" type="password" />
+          </div>
+          <button id="admin-change-password-btn">Сменить админ-пароль (локально)</button>
+          <div id="admin-change-password-status" class="hint"></div>
         </div>
       </section>
-    </main>
+
+      <!-- Онлайн драфт -->
+      <section id="screen-online" class="screen hidden">
+        <div class="screen-header">
+          <h2>Онлайн драфт (Supabase)</h2>
+          <button class="back-btn" data-back>Назад в меню</button>
+        </div>
+
+        <div class="card-row">
+          <div class="card">
+            <h3>Профиль</h3>
+            <div class="form-row">
+              <label for="online-nickname">Твой ник в комнате</label>
+              <input id="online-nickname" type="text" placeholder="Например, Saadness" />
+            </div>
+            <p class="hint small">
+              Авторизация в Supabase не нужна. Ник используется только внутри комнат.
+            </p>
+          </div>
+
+          <div class="card">
+            <h3>Создать комнату</h3>
+            <div class="form-row">
+              <label for="online-create-password">Пароль комнаты (опционально)</label>
+              <input id="online-create-password" type="password" />
+            </div>
+            <button id="online-create-room">Создать комнату</button>
+            <div id="online-create-result" class="hint"></div>
+          </div>
+
+          <div class="card">
+            <h3>Войти в комнату</h3>
+            <div class="form-row">
+              <label for="online-join-code">Код комнаты</label>
+              <input id="online-join-code" type="text" />
+            </div>
+            <div class="form-row">
+              <label for="online-join-password">Пароль комнаты (если есть)</label>
+              <input id="online-join-password" type="password" />
+            </div>
+            <button id="online-join-room">Войти</button>
+            <div id="online-join-result" class="hint"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Список активных комнат</h3>
+          <div class="btn-row">
+            <button id="online-refresh-rooms">Обновить список</button>
+          </div>
+          <div id="online-rooms-list" class="scroll-panel"></div>
+          <p class="hint small">
+            Максимум 50 комнат. Старые комнаты автоудаляются на стороне базы (через 14 дней).
+            Клик по комнате заполнит код для входа.
+          </p>
+        </div>
+
+        <div id="online-room-section" class="card hidden">
+          <div class="card-header-row">
+            <h3>Текущая комната</h3>
+            <div class="room-info">
+              <span>Код: <strong id="online-room-code"></strong></span>
+              <span>Роль: <strong id="online-my-role"></strong></span>
+              <span>Статус: <strong id="online-match-status"></strong></span>
+            </div>
+          </div>
+
+          <div class="card-row">
+            <div class="card">
+              <h3>Настройки матча</h3>
+              <div class="form-row">
+                <label for="online-map-select">Карта</label>
+                <select id="online-map-select"></select>
+              </div>
+              <div class="form-row">
+                <label for="online-mode-select">Режим драфта</label>
+                <select id="online-mode-select">
+                  <option value="human_vs_human">Капитан 1 vs Капитан 2</option>
+                  <option value="human_vs_ai">Я против ИИ (один капитан, второй ИИ)</option>
+                  <option value="ai_vs_ai">ИИ против ИИ</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label for="online-ai-strategy">Стратегия ИИ</label>
+                <select id="online-ai-strategy">
+                  <option value="balanced">Сбалансированная</option>
+                  <option value="infantry_focus">Фокус на пехоте</option>
+                  <option value="motorized_focus">Фокус на мотопехоте</option>
+                  <option value="tanks_focus">Фокус на танках</option>
+                  <option value="artillery_focus">Фокус на арте</option>
+                  <option value="max_dpm">Максимум DPM</option>
+                  <option value="counter_enemy">Контрпик по ролям</option>
+                </select>
+              </div>
+              <button id="online-start-draft" class="primary-btn full-width">
+                Начать / передрафтить матч
+              </button>
+              <div id="online-error" class="error-text"></div>
+            </div>
+
+            <div class="card">
+              <h3>Участники комнаты</h3>
+              <div id="online-participants" class="scroll-panel tall"></div>
+            </div>
+
+            <div id="online-creator-panel" class="card hidden"></div>
+          </div>
+
+          <div id="online-draft-block" class="card hidden">
+            <div class="card-header-row">
+              <h3>Ход драфта</h3>
+              <div id="online-pick-order" class="pick-order-row"></div>
+            </div>
+            <div class="draft-layout">
+              <div class="team-column">
+                <h4>Команда 1</h4>
+                <ul id="online-team1" class="team-list"></ul>
+              </div>
+              <div class="center-column">
+                <h4>Доступные игроки</h4>
+                <div id="online-available" class="scroll-panel tall"></div>
+              </div>
+              <div class="team-column">
+                <h4>Команда 2</h4>
+                <ul id="online-team2" class="team-list"></ul>
+              </div>
+            </div>
+            <div id="online-suggestions" class="hint-block"></div>
+          </div>
+        </div>
+      </section>
+    </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script type="module" src="app.js"></script>
 </body>
 </html>
