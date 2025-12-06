@@ -11,8 +11,7 @@ let supabase = null;
 function initSupabase() {
   if (supabase) return;
   if (window.supabase) {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_K
-EY);
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   } else {
     console.error("Supabase JS не загрузился. Онлайн-режим будет отключён.");
   }
@@ -846,12 +845,15 @@ async function createOnlineRoom() {
     state: online.draft,
   });
 
-  await supabase.from("room_participants").upsert({
-    room_id: online.roomId,
-    client_id: online.clientId,
-    nickname: online.nickname,
-    role: "captain1",
-  }, { onConflict: "room_id,client_id" });
+  await supabase.from("room_participants").upsert(
+    {
+      room_id: online.roomId,
+      client_id: online.clientId,
+      nickname: online.nickname,
+      role: "captain1",
+    },
+    { onConflict: "room_id,client_id" }
+  );
 
   setupOnlineSubscriptions();
   renderOnlineDraft();
@@ -910,12 +912,15 @@ async function joinOnlineRoom() {
   $("online-match-status").textContent = "Лобби";
   $("online-room-section").classList.remove("hidden");
 
-  await supabase.from("room_participants").upsert({
-    room_id: online.roomId,
-    client_id: online.clientId,
-    nickname: online.nickname,
-    role: "spectator",
-  }, { onConflict: "room_id,client_id" });
+  await supabase.from("room_participants").upsert(
+    {
+      room_id: online.roomId,
+      client_id: online.clientId,
+      nickname: online.nickname,
+      role: "spectator",
+    },
+    { onConflict: "room_id,client_id" }
+  );
 
   const { data: stData, error: stErr } = await supabase
     .from("room_state")
@@ -949,9 +954,9 @@ async function joinOnlineRoom() {
     modeSel.value = online.draft.mode;
     online.selectedMode = online.draft.mode;
   }
-  const aiSel = $("online-ai-strategy");
-  if (aiSel && online.draft.strategy) {
-    aiSel.value = online.draft.strategy;
+  const aiSel2 = $("online-ai-strategy");
+  if (aiSel2 && online.draft.strategy) {
+    aiSel2.value = online.draft.strategy;
     currentAIStrategy = online.draft.strategy;
   }
 
@@ -1205,7 +1210,6 @@ function renderOnlineDraft() {
   sug.innerHTML = "";
 
   const mode = online.draft.mode || "human_vs_human";
-  const strategy = online.draft.strategy || currentAIStrategy || "balanced";
 
   $("online-match-status").textContent =
     online.draft.currentPick > online.draft.maxPick
@@ -1239,14 +1243,14 @@ function renderOnlineDraft() {
 
   block.classList.remove("hidden");
 
+  // Ход ИИ (запускается только у создателя комнаты)
   if (
     online.roomId &&
     online.isCreator &&
     online.draft.currentPick <= online.draft.maxPick
   ) {
     const pickNum = online.draft.currentPick;
-    const side = DRAFT_ORDER.cap1.includes(pickNum) ? "team1" : "team2";
-    const sideRole = side === "team1" ? "captain1" : "captain2";
+    const sideRole = DRAFT_ORDER.cap1.includes(pickNum) ? "captain1" : "captain2";
 
     if (mode === "human_vs_ai" && sideRole === "captain2") {
       aiPickCurrentSide();
@@ -1281,6 +1285,7 @@ function renderOnlineDraft() {
   avail.appendChild(headline);
 
   const availSet = new Set(online.draft.available);
+  const strategy = online.draft.strategy || currentAIStrategy || "balanced";
   const availablePlayers = players.filter((p) => availSet.has(p.name));
   availablePlayers.sort((a, b) => calcPlayerValue(b, strategy) - calcPlayerValue(a, strategy));
 
