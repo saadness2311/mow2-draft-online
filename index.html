@@ -71,7 +71,22 @@
                   <option value="manual">Драфт самостоятельный</option>
                 </select>
               </div>
-              <div class="form-row" id="offline-human-side-row">
+              
+              <div class="form-row">
+                <label>Капитаны команд (добавляются автоматически как 5‑й игрок)</label>
+                <div class="dual-select-row">
+                  <select id="offline-captain1">
+                    <option value="">— не выбран —</option>
+                  </select>
+                  <select id="offline-captain2">
+                    <option value="">— не выбран —</option>
+                  </select>
+                </div>
+                <div class="hint small">
+                  Эти два игрока считаются капитанами и сразу входят в состав Команды 1 и Команды 2. Драфт выбирает только остальных четырёх.
+                </div>
+              </div>
+<div class="form-row" id="offline-human-side-row">
                 <label>За какого капитана играешь ты?</label>
                 <select id="offline-human-side">
                   <option value="team1">Капитан 1 (Команда 1)</option>
