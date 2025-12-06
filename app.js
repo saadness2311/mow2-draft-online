@@ -1,5 +1,5 @@
 
-// MoW 2 Draft Project - V11 core logic (captains in offline draft)
+// MoW 2 Draft Project - V11 core logic
 
 // --- Константы и глобальные переменные ---
 
@@ -245,6 +245,7 @@ function loadPlayersLocal() {
     if (cached) {
       playersLocal = normalizePlayers(JSON.parse(cached));
       players = playersLocal;
+      populateOfflineCaptains();
       return;
     }
   } catch (e) {
@@ -255,16 +256,16 @@ function loadPlayersLocal() {
     .then(data => {
       playersLocal = normalizePlayers(data);
       players = playersLocal;
-      populateOfflineCaptains(); // важное действие — заполнить выпадающие списки капитанов
+      populateOfflineCaptains();
     })
     .catch(err => {
       console.error("Failed to load players.json", err);
       playersLocal = [];
       players = playersLocal;
+      populateOfflineCaptains();
     });
 }
 
-// Сохранение локальных игроков
 function savePlayersLocal() {
   try {
     localStorage.setItem("mow2_players_local_v11", JSON.stringify(playersLocal));
@@ -283,6 +284,7 @@ function initSupabase() {
   return onlineState.supabase;
 }
 
+// Пытаемся подгрузить глобальный админ-пароль из Supabase
 async function loadAdminPasswordGlobal() {
   try {
     const supabase = initSupabase();
@@ -299,7 +301,7 @@ async function loadAdminPasswordGlobal() {
   }
 }
 
-// --- Меню и переходы ---
+// --- Меню и переходы между экранами ---
 
 function showScreen(id) {
   document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
@@ -313,12 +315,41 @@ function initMenu() {
     card.addEventListener("click", () => {
       const target = card.getAttribute("data-target");
       if (!target) return;
-      showScreen(target);
+      if (target === "offline") showScreen("offline");
+      if (target === "online") showScreen("online");
+      if (target === "players") showScreen("players");
+      if (target === "admin") showScreen("admin");
     });
   });
   document.querySelectorAll("[data-back]").forEach(btn => {
     btn.addEventListener("click", () => showScreen("menu"));
   });
+}
+
+// Краткая сводка по игрокам в главном меню
+function renderMenuSummary() {
+  const box = $("menu-players-summary");
+  if (!box) return;
+  const src = players || [];
+  if (!src.length) {
+    box.innerHTML = "<div class='hint'>База игроков ещё не загружена.</div>";
+    return;
+  }
+  const total = src.length;
+  const tierCounts = { S:0,A:0,B:0,C:0,D:0,F:0 };
+  src.forEach(p => {
+    const t = p.tier || "D";
+    if (tierCounts[t] == null) tierCounts[t] = 0;
+    tierCounts[t]++;
+  });
+  box.innerHTML = `
+    <h3>Сводка по базе игроков</h3>
+    <div class="hint small">
+      Всего игроков: <strong>${total}</strong>. 
+      S: ${tierCounts.S || 0}, A: ${tierCounts.A || 0}, B: ${tierCounts.B || 0}, 
+      C: ${tierCounts.C || 0}, D: ${tierCounts.D || 0}, F: ${tierCounts.F || 0}.
+    </div>
+  `;
 }
 
 // --- Оффлайн-драфт ---
@@ -357,9 +388,7 @@ function initOffline() {
     offlineDraft.strategy2 = $("offline-ai-strategy-2").value;
   });
 
-  // Пул кнопки
   $("offline-pool-all").addEventListener("click", () => {
-    // в пул добавляем всех, КРОМЕ выбранных капитанов
     const cap1 = offlineDraft.captain1;
     const cap2 = offlineDraft.captain2;
     offlineDraft.pool = players
@@ -386,19 +415,21 @@ function initOffline() {
   $("offline-export-btn").addEventListener("click", exportOfflineResult);
 
   updateOfflineModeUI();
-  renderOfflinePool();
   populateOfflineCaptains();
+  renderOfflinePool();
 }
 
-// Заполняем выпадающие списки капитанов
 function populateOfflineCaptains() {
   const sel1 = $("offline-captain1");
   const sel2 = $("offline-captain2");
   if (!sel1 || !sel2) return;
+
   const current1 = offlineDraft.captain1;
   const current2 = offlineDraft.captain2;
-  sel1.innerHTML = "<option value="">— не выбран —</option>";
-  sel2.innerHTML = "<option value="">— не выбран —</option>";
+
+  sel1.innerHTML = '<option value="">— не выбран —</option>';
+  sel2.innerHTML = '<option value="">— не выбран —</option>';
+
   players.forEach(p => {
     const o1 = document.createElement("option");
     o1.value = p.name;
@@ -409,24 +440,24 @@ function populateOfflineCaptains() {
     o2.textContent = p.name;
     sel2.appendChild(o2);
   });
+
   if (current1) sel1.value = current1;
   if (current2) sel2.value = current2;
 
-  sel1.addEventListener("change", () => {
+  sel1.onchange = () => {
     offlineDraft.captain1 = sel1.value || null;
-    // если случайно выбрали того же для второй команды — сбросим
     if (offlineDraft.captain2 === offlineDraft.captain1) {
       offlineDraft.captain2 = null;
       sel2.value = "";
     }
-  });
-  sel2.addEventListener("change", () => {
+  };
+  sel2.onchange = () => {
     offlineDraft.captain2 = sel2.value || null;
     if (offlineDraft.captain1 === offlineDraft.captain2) {
       offlineDraft.captain1 = null;
       sel1.value = "";
     }
-  });
+  };
 }
 
 function updateOfflineModeUI() {
@@ -446,6 +477,16 @@ function renderOfflinePool() {
   players.forEach(p => {
     const row = document.createElement("div");
     row.className = "player-row" + (poolSet.has(p.name) ? " selected" : "");
+    row.addEventListener("click", () => {
+      // капитаны не могут быть в пуле
+      if (p.name === offlineDraft.captain1 || p.name === offlineDraft.captain2) return;
+      if (poolSet.has(p.name)) {
+        offlineDraft.pool = offlineDraft.pool.filter(n => n !== p.name);
+      } else {
+        offlineDraft.pool.push(p.name);
+      }
+      renderOfflinePool();
+    });
     const tierClass = "player-tier-" + (p.tier || "D");
     row.innerHTML = `
       <div>
@@ -453,27 +494,18 @@ function renderOfflinePool() {
         <span class="player-info">[${p.tier || "D"}] MMR: ${round(p.mmr)}, DPM: ${round(p.dpm)}</span>
       </div>
     `;
-    row.addEventListener("click", () => {
-      if (poolSet.has(p.name)) {
-        offlineDraft.pool = offlineDraft.pool.filter(n => n !== p.name);
-      } else {
-        // нельзя в пул добавлять капитанов
-        if (p.name === offlineDraft.captain1 || p.name === offlineDraft.captain2) return;
-        offlineDraft.pool.push(p.name);
-      }
-      renderOfflinePool();
-    });
     box.appendChild(row);
   });
+
 }
 
 function startOfflineDraft() {
   const errBox = $("offline-error");
   errBox.textContent = "";
 
-  // капитаны обязательны
+  // Капитаны обязательны и не могут совпадать
   if (!offlineDraft.captain1 || !offlineDraft.captain2) {
-    errBox.textContent = "Нужно выбрать капитана для Команды 1 и Команды 2 перед стартом драфта.";
+    errBox.textContent = "Нужно выбрать капитанов для Команды 1 и Команды 2 перед стартом драфта.";
     return;
   }
   if (offlineDraft.captain1 === offlineDraft.captain2) {
@@ -481,22 +513,17 @@ function startOfflineDraft() {
     return;
   }
 
-  // пул — минимум 8 игроков, потому что нужно добрать по 4 к капитанам
+  // В пуле должны быть хотя бы 8 игроков (по 4 на докомплектование к капитанам)
   if (!offlineDraft.pool || offlineDraft.pool.length < 8) {
     errBox.textContent = "Нужно выбрать минимум 8 игроков в пул (по 4 на каждую команду).";
     return;
   }
 
-  // инициализируем состояние
   offlineDraft.available = offlineDraft.pool.slice();
-  offlineDraft.team1 = [];
-  offlineDraft.team2 = [];
+  offlineDraft.team1 = [offlineDraft.captain1];
+  offlineDraft.team2 = [offlineDraft.captain2];
   offlineDraft.currentPickIndex = 0;
   offlineDraft.finished = false;
-
-  // капитаны сразу в составе и НЕ участвуют в драфте
-  offlineDraft.team1.push(offlineDraft.captain1);
-  offlineDraft.team2.push(offlineDraft.captain2);
 
   renderOfflineDraft();
 }
@@ -515,16 +542,16 @@ function renderOfflineDraft() {
 
   team1El.innerHTML = "";
   offlineDraft.team1.forEach(name => {
-    const p = players.find(pp => pp.name === name);
     const li = document.createElement("li");
+    const p = players.find(pp => pp.name === name);
     li.textContent = p ? `${p.name} [${p.tier}]` : name;
     team1El.appendChild(li);
   });
 
   team2El.innerHTML = "";
   offlineDraft.team2.forEach(name => {
-    const p = players.find(pp => pp.name === name);
     const li = document.createElement("li");
+    const p = players.find(pp => pp.name === name);
     li.textContent = p ? `${p.name} [${p.tier}]` : name;
     team2El.appendChild(li);
   });
@@ -699,7 +726,7 @@ function calcPlayerValue(p, ctx) {
       assault_infantry: ["aa_artillery", "spg"],
       artillery: ["motorized_infantry", "assault_infantry", "sapper"],
       spg: ["at_artillery","heavy_tanks"],
-      aa_artillery: ["air_support"],
+      aa_artillery: ["air_support"], // на будущее
       sapper: ["infantry","assault_infantry"]
     };
     let bonus = 0;
@@ -772,6 +799,7 @@ function initPlayersScreen() {
       players = playersLocal;
     }
     renderPlayersList();
+    renderMenuSummary();
   });
 
   nameFilter.addEventListener("input", renderPlayersList);
@@ -799,6 +827,7 @@ function initPlayersScreen() {
         if (activeDataset === "local") players = playersLocal;
         savePlayersLocal();
         renderPlayersList();
+        renderMenuSummary();
       } catch (err) {
         alert("Ошибка при разборе JSON локальной базы.");
         console.error(err);
@@ -910,14 +939,16 @@ function renderPlayerEdit(p) {
     p.roles = rolesStr.split(",").map(s=>s.trim()).filter(Boolean);
 
     if (activeDataset === "local") {
+      // обновляем playersLocal (по ссылке это те же объекты)
       savePlayersLocal();
     }
     renderPlayersList();
+    renderMenuSummary();
     renderPlayerEdit(p);
   });
 }
 
-// --- Онлайн (упрощённо) ---
+// --- Онлайн комнаты (упрощённо, без полной синхронизации) ---
 
 function initOnlineScreen() {
   $("online-create-room").addEventListener("click", createOnlineRoom);
@@ -961,6 +992,7 @@ async function createOnlineRoom() {
   }
   const roomPassword = $("online-create-password").value || "";
 
+  // Проверка лимита комнат
   try {
     const twoWeeksAgo = new Date(Date.now() - 14*24*60*60*1000).toISOString();
     const { data: rooms, error } = await supabase
@@ -1186,7 +1218,7 @@ async function renderOnlineParticipants() {
     creatorPanel.innerHTML = `
       <div><strong>Панель создателя комнаты</strong></div>
       <div class="hint small">
-        Здесь позже можно будет назначать капитанов, кикать участников и т.д. (упрощено для этой версии).
+        Здесь позже можно будет назначать капитанов, кикать участников и т.д. (упрощено для V11).
       </div>
     `;
   } else {
@@ -1417,6 +1449,7 @@ async function adminLoadGlobal() {
     if (activeDataset === "global") {
       players = playersGlobal;
       renderPlayersList();
+      renderMenuSummary();
     }
   } catch (e) {
     console.error(e);
@@ -1504,6 +1537,7 @@ window.addEventListener("load", () => {
   initOnlineScreen();
   initAdminScreen();
 
+  // Подгружаем стратегии ИИ из localStorage, если есть
   try {
     const saved = localStorage.getItem("mow2_ai_strategies_v11");
     if (saved) {
@@ -1513,6 +1547,7 @@ window.addEventListener("load", () => {
     console.warn("Failed to load AI strategies override", e);
   }
 
+  // Подгружаем глобальный админ-пароль из Supabase (если таблица настроена)
   loadAdminPasswordGlobal();
 
   showScreen("menu");
