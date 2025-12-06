@@ -1,14 +1,22 @@
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-
 /* ==========================
-   Supabase init
+   Supabase init (через window.supabase)
    ========================== */
 
 const SUPABASE_URL = "https://utfudifzuytzbwnxqpcf.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_duqpINIqRBZBtmifX5q94Q_bnc-uuxm";
 const ADMIN_PASSWORD = "kozakuapro";
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let supabase = null;
+
+function initSupabase() {
+  if (supabase) return;
+  if (window.supabase) {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_K
+EY);
+  } else {
+    console.error("Supabase JS не загрузился. Онлайн-режим будет отключён.");
+  }
+}
 
 /* ==========================
    Карты и порядок пиков
@@ -224,7 +232,7 @@ function rolesToString(p) {
    ========================== */
 
 const STORAGE_KEYS = {
-  players: "mow2_v7_players",
+  players: "mow2_v8_players",
 };
 
 async function loadPlayers() {
@@ -432,7 +440,9 @@ function renderOfflineDraft() {
     nameSpan.textContent = p.name;
     const meta = document.createElement("span");
     meta.className = "meta";
-    meta.textContent = `MMR: ${Math.round(p.mmr || 0)}, DPM: ${Math.round(p.dpm || 0)}, Tier: ${p.tier || "D"}, Роли: ${rolesToString(p)}`;
+    meta.textContent = `MMR: ${Math.round(p.mmr || 0)}, DPM: ${Math.round(
+      p.dpm || 0
+    )}, Tier: ${p.tier || "D"}, Роли: ${rolesToString(p)}`;
     item.appendChild(nameSpan);
     item.appendChild(meta);
     item.addEventListener("click", () => pickOffline(side, p.name));
@@ -644,6 +654,7 @@ function initAdminScreen() {
       isAdmin = true;
       status.textContent = "Админ-режим активирован.";
       $("admin-actions").classList.remove("hidden");
+      initSupabase();
     } else {
       isAdmin = false;
       status.textContent = "Неверный пароль.";
@@ -654,6 +665,11 @@ function initAdminScreen() {
   $("admin-load-global").addEventListener("click", async () => {
     if (!isAdmin) {
       $("admin-actions-status").textContent = "Сначала введи админ-пароль.";
+      return;
+    }
+    initSupabase();
+    if (!supabase) {
+      $("admin-actions-status").textContent = "Supabase недоступен.";
       return;
     }
     $("admin-actions-status").textContent = "Загрузка из Supabase...";
@@ -678,6 +694,11 @@ function initAdminScreen() {
       $("admin-actions-status").textContent = "Сначала введи админ-пароль.";
       return;
     }
+    initSupabase();
+    if (!supabase) {
+      $("admin-actions-status").textContent = "Supabase недоступен.";
+      return;
+    }
     $("admin-actions-status").textContent = "Сохранение в Supabase...";
     const rows = players.map((p) => ({ name: p.name, data: p }));
     const { error } = await supabase.from("players_global").upsert(rows, { onConflict: "name" });
@@ -695,15 +716,7 @@ function initAdminScreen() {
    ========================== */
 
 function initOnlineScreen() {
-  // clientId
-  let cid = localStorage.getItem("mow2_v7_client_id");
-  if (!cid) {
-    cid = crypto.randomUUID();
-    localStorage.setItem("mow2_v7_client_id", cid);
-  }
-  online.clientId = cid;
-
-  // карта
+  initSupabase();
   const mapSel = $("online-map-select");
   mapSel.innerHTML = "";
   MAPS.forEach((m) => {
@@ -720,7 +733,6 @@ function initOnlineScreen() {
     }
   });
 
-  // режим
   const modeSel = $("online-mode-select");
   if (modeSel) {
     modeSel.value = online.selectedMode;
@@ -753,8 +765,13 @@ function ensureNickname() {
 }
 
 async function createOnlineRoom() {
-  const nick = ensureNickname();
+  initSupabase();
   const out = $("online-create-result");
+  if (!supabase) {
+    out.textContent = "Supabase не доступен, онлайн режим отключён.";
+    return;
+  }
+  const nick = ensureNickname();
   if (!nick) {
     out.textContent = "Сначала введи ник.";
     return;
@@ -763,7 +780,6 @@ async function createOnlineRoom() {
 
   online.nickname = nick;
 
-  // Лимит на количество комнат (50)
   out.textContent = "Проверка лимита комнат...";
   const { count, error: countError } = await supabase
     .from("rooms")
@@ -808,7 +824,6 @@ async function createOnlineRoom() {
   $("online-room-code").textContent = online.roomCode;
   $("online-my-role").textContent = "Капитан 1";
   $("online-match-status").textContent = "Лобби";
-
   $("online-room-section").classList.remove("hidden");
 
   online.draft = {
@@ -845,8 +860,13 @@ async function createOnlineRoom() {
 }
 
 async function joinOnlineRoom() {
-  const nick = ensureNickname();
+  initSupabase();
   const out = $("online-join-result");
+  if (!supabase) {
+    out.textContent = "Supabase не доступен, онлайн режим отключён.";
+    return;
+  }
+  const nick = ensureNickname();
   if (!nick) {
     out.textContent = "Сначала введи ник.";
     return;
@@ -888,7 +908,6 @@ async function joinOnlineRoom() {
   $("online-room-code").textContent = online.roomCode;
   $("online-my-role").textContent = "Зритель";
   $("online-match-status").textContent = "Лобби";
-
   $("online-room-section").classList.remove("hidden");
 
   await supabase.from("room_participants").upsert({
@@ -943,7 +962,7 @@ async function joinOnlineRoom() {
 }
 
 function setupOnlineSubscriptions() {
-  if (!online.roomId) return;
+  if (!online.roomId || !supabase) return;
 
   if (online.roomStateChannel) supabase.removeChannel(online.roomStateChannel);
   if (online.participantsChannel) supabase.removeChannel(online.participantsChannel);
@@ -998,7 +1017,7 @@ function setupOnlineSubscriptions() {
 }
 
 async function loadOnlineParticipants() {
-  if (!online.roomId) return;
+  if (!online.roomId || !supabase) return;
   const { data, error } = await supabase
     .from("room_participants")
     .select("*")
@@ -1118,14 +1137,14 @@ function renderCreatorPanel() {
 }
 
 async function applyCreatorRoles() {
-  if (!online.roomId) return;
+  initSupabase();
+  if (!supabase || !online.roomId) return;
   const id1 = $("creator-cap1-select").value;
   const id2 = $("creator-cap2-select").value;
   const ids = online.participants.map((p) => p.id);
   if (!ids.length) return;
 
   try {
-    // все в spectator
     await supabase.from("room_participants").update({ role: "spectator" }).in("id", ids);
     if (id1) {
       await supabase.from("room_participants").update({ role: "captain1" }).eq("id", id1);
@@ -1140,6 +1159,8 @@ async function applyCreatorRoles() {
 }
 
 async function kickParticipant() {
+  initSupabase();
+  if (!supabase) return;
   const id = $("creator-kick-select").value;
   if (!id) return;
   try {
@@ -1151,7 +1172,8 @@ async function kickParticipant() {
 }
 
 async function changeRoomPassword() {
-  if (!online.roomId) return;
+  initSupabase();
+  if (!supabase || !online.roomId) return;
   const newPwd = $("creator-new-password").value || null;
   try {
     await supabase.from("rooms").update({ password: newPwd }).eq("id", online.roomId);
@@ -1161,7 +1183,8 @@ async function changeRoomPassword() {
 }
 
 async function syncOnlineState() {
-  if (!online.roomId) return;
+  initSupabase();
+  if (!supabase || !online.roomId) return;
   await supabase.from("room_state").update({ state: online.draft }).eq("room_id", online.roomId);
 }
 
@@ -1216,7 +1239,6 @@ function renderOnlineDraft() {
 
   block.classList.remove("hidden");
 
-  // Автоход ИИ (делает только создатель комнаты)
   if (
     online.roomId &&
     online.isCreator &&
@@ -1290,7 +1312,6 @@ function renderOnlineDraft() {
     avail.appendChild(item);
   });
 
-  // Подсказка ИИ: только капитану, который сейчас ходит, и только в режимах с человеком
   if (
     availablePlayers.length > 0 &&
     isMyTurn &&
@@ -1328,6 +1349,11 @@ function renderOnlineDraft() {
 async function startOnlineDraft() {
   const err = $("online-error");
   err.textContent = "";
+  initSupabase();
+  if (!supabase) {
+    err.textContent = "Supabase не доступен, онлайн режим отключён.";
+    return;
+  }
   if (!online.roomId) {
     err.textContent = "Сначала создай или зайди в комнату.";
     return;
@@ -1361,7 +1387,8 @@ async function startOnlineDraft() {
 }
 
 async function pickOnline(side, name) {
-  if (!online.roomId) return;
+  initSupabase();
+  if (!supabase || !online.roomId) return;
   const pickNum = online.draft.currentPick;
   const sideRole = DRAFT_ORDER.cap1.includes(pickNum) ? "captain1" : "captain2";
   if (online.myRole !== sideRole) return;
@@ -1384,7 +1411,8 @@ async function pickOnline(side, name) {
 }
 
 async function aiPickCurrentSide() {
-  if (!online.roomId) return;
+  initSupabase();
+  if (!supabase || !online.roomId) return;
   const pickNum = online.draft.currentPick;
   if (pickNum > online.draft.maxPick) return;
   const side = DRAFT_ORDER.cap1.includes(pickNum) ? "team1" : "team2";
@@ -1428,6 +1456,14 @@ async function aiPickCurrentSide() {
    ========================== */
 
 window.addEventListener("load", async () => {
+  // clientId для онлайн режима
+  let cid = localStorage.getItem("mow2_v8_client_id");
+  if (!cid) {
+    cid = crypto.randomUUID();
+    localStorage.setItem("mow2_v8_client_id", cid);
+  }
+  online.clientId = cid;
+
   document.querySelectorAll(".menu-card").forEach((btn) => {
     btn.addEventListener("click", () => {
       const target = btn.getAttribute("data-target");
