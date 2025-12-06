@@ -208,6 +208,11 @@ button:disabled {
   gap: 6px;
 }
 
+.dual-select-row {
+  display: flex;
+  gap: 6px;
+}
+
 .file-btn {
   display: inline-flex;
   align-items: center;
@@ -267,6 +272,10 @@ button:disabled {
 .player-row.selected {
   border-color: #0a84ff;
   background: rgba(10,132,255,0.18);
+}
+.player-row.disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .player-tier-S { color: #ffd966; }

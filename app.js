@@ -47,6 +47,19 @@ let ROLE_WEIGHTS = {
     spg: 1.4,
     sapper: 1.2
   },
+  max_dpm: {
+    infantry: 1,
+    motorized_infantry: 1,
+    assault_infantry: 1,
+    mechanical: 1,
+    tanks: 1,
+    heavy_tanks: 1,
+    artillery: 1,
+    at_artillery: 1,
+    aa_artillery: 1,
+    spg: 1,
+    sapper: 1
+  },
   infantry_focus: {
     infantry: 2.5,
     motorized_infantry: 1.8,
@@ -137,6 +150,19 @@ let ROLE_WEIGHTS = {
     aa_artillery: 2.6,
     spg: 1.1,
     sapper: 1.9
+  },
+  counter_enemy: {
+    infantry: 1.4,
+    motorized_infantry: 1.4,
+    assault_infantry: 1.3,
+    mechanical: 1.4,
+    tanks: 1.4,
+    heavy_tanks: 1.5,
+    artillery: 1.3,
+    at_artillery: 1.6,
+    aa_artillery: 1.6,
+    spg: 1.6,
+    sapper: 1.4
   }
 };
 
@@ -246,6 +272,7 @@ function loadPlayersLocal() {
       playersLocal = normalizePlayers(JSON.parse(cached));
       players = playersLocal;
       populateOfflineCaptains();
+      populateOnlineCaptains();
       return;
     }
   } catch (e) {
@@ -257,12 +284,14 @@ function loadPlayersLocal() {
       playersLocal = normalizePlayers(data);
       players = playersLocal;
       populateOfflineCaptains();
+      populateOnlineCaptains();
     })
     .catch(err => {
       console.error("Failed to load players.json", err);
       playersLocal = [];
       players = playersLocal;
       populateOfflineCaptains();
+      populateOnlineCaptains();
     });
 }
 
@@ -458,6 +487,81 @@ function populateOfflineCaptains() {
       sel1.value = "";
     }
   };
+}
+
+function ensureOnlineDraftState() {
+  if (!onlineState.draft) {
+    onlineState.draft = {
+      map: MAPS[0],
+      mode: "human_vs_human",
+      aiStrategy: "balanced",
+      captain1: null,
+      captain2: null,
+      pool: [],
+      available: [],
+      team1: [],
+      team2: [],
+      currentPickIndex: 0,
+      finished: false
+    };
+  }
+  return onlineState.draft;
+}
+
+function populateOnlineCaptains() {
+  const sel1 = $("online-captain1");
+  const sel2 = $("online-captain2");
+  if (!sel1 || !sel2) return;
+  const draft = ensureOnlineDraftState();
+
+  sel1.disabled = !onlineState.isCreator;
+  sel2.disabled = !onlineState.isCreator;
+
+  const current1 = draft.captain1;
+  const current2 = draft.captain2;
+
+  sel1.innerHTML = '<option value="">— не выбран —</option>';
+  sel2.innerHTML = '<option value="">— не выбран —</option>';
+
+  players.forEach(p => {
+    const o1 = document.createElement("option");
+    o1.value = p.name;
+    o1.textContent = p.name;
+    sel1.appendChild(o1);
+    const o2 = document.createElement("option");
+    o2.value = p.name;
+    o2.textContent = p.name;
+    sel2.appendChild(o2);
+  });
+
+  if (current1) sel1.value = current1;
+  if (current2) sel2.value = current2;
+
+  sel1.onchange = () => {
+    draft.captain1 = sel1.value || null;
+    if (draft.captain2 === draft.captain1) {
+      draft.captain2 = null;
+      sel2.value = "";
+    }
+    renderOnlinePool();
+  };
+  sel2.onchange = () => {
+    draft.captain2 = sel2.value || null;
+    if (draft.captain1 === draft.captain2) {
+      draft.captain1 = null;
+      sel1.value = "";
+    }
+    renderOnlinePool();
+  };
+}
+
+function syncOnlineControlsAccess() {
+  const isCreator = onlineState.isCreator;
+  ["online-map-select","online-mode-select","online-ai-strategy","online-pool-all","online-pool-top20","online-pool-clear","online-start-draft"].forEach(id => {
+    const el = $(id);
+    if (el) el.disabled = !isCreator;
+  });
+  populateOnlineCaptains();
 }
 
 function updateOfflineModeUI() {
@@ -798,6 +902,8 @@ function initPlayersScreen() {
       activeDataset = "local";
       players = playersLocal;
     }
+    populateOfflineCaptains();
+    populateOnlineCaptains();
     renderPlayersList();
     renderMenuSummary();
   });
@@ -963,24 +1069,43 @@ function initOnlineScreen() {
     mapSel.appendChild(opt);
   });
 
+  const draft = ensureOnlineDraftState();
+  mapSel.value = draft.map;
+  mapSel.addEventListener("change", () => {
+    draft.map = mapSel.value;
+  });
+
   $("online-start-draft").addEventListener("click", startOnlineDraft);
 
   $("online-pool-all").addEventListener("click", () => {
-    if (!onlineState.isCreator || !onlineState.draft) return;
-    onlineState.draft.pool = players.map(p=>p.name);
+    const d = ensureOnlineDraftState();
+    if (!onlineState.isCreator) return;
+    const { captain1, captain2 } = d;
+    onlineState.draft.pool = players
+      .map(p=>p.name)
+      .filter(n => n !== captain1 && n !== captain2);
     renderOnlinePool();
   });
   $("online-pool-top20").addEventListener("click", () => {
-    if (!onlineState.isCreator || !onlineState.draft) return;
+    const d = ensureOnlineDraftState();
+    if (!onlineState.isCreator) return;
     const sorted = [...players].sort((a,b)=> (b.mmr||0)-(a.mmr||0));
-    onlineState.draft.pool = sorted.slice(0,20).map(p=>p.name);
+    const { captain1, captain2 } = d;
+    onlineState.draft.pool = sorted
+      .slice(0,20)
+      .map(p=>p.name)
+      .filter(n => n !== captain1 && n !== captain2);
     renderOnlinePool();
   });
   $("online-pool-clear").addEventListener("click", () => {
-    if (!onlineState.isCreator || !onlineState.draft) return;
+    ensureOnlineDraftState();
+    if (!onlineState.isCreator) return;
     onlineState.draft.pool = [];
     renderOnlinePool();
   });
+
+  populateOnlineCaptains();
+  syncOnlineControlsAccess();
 }
 
 async function createOnlineRoom() {
@@ -1027,6 +1152,7 @@ async function createOnlineRoom() {
   onlineState.room = data;
   onlineState.isCreator = true;
   onlineState.myRole = "captain1";
+  syncOnlineControlsAccess();
 
   const { data: participant, error: pErr } = await supabase
     .from("room_participants")
@@ -1041,14 +1167,21 @@ async function createOnlineRoom() {
     onlineState.myParticipantId = participant.id;
   }
 
+  const draft = ensureOnlineDraftState();
+  const cap1 = draft.captain1;
+  const cap2 = draft.captain2;
   onlineState.draft = {
-    map: MAPS[0],
-    mode: "human_vs_human",
-    aiStrategy: "balanced",
-    pool: players.map(p=>p.name),
+    map: draft.map || MAPS[0],
+    mode: draft.mode || "human_vs_human",
+    aiStrategy: draft.aiStrategy || "balanced",
+    captain1: cap1,
+    captain2: cap2,
+    pool: players
+      .map(p=>p.name)
+      .filter(n => n !== cap1 && n !== cap2),
     available: [],
-    team1: [],
-    team2: [],
+    team1: cap1 ? [cap1] : [],
+    team2: cap2 ? [cap2] : [],
     currentPickIndex: 0,
     finished: false
   };
@@ -1058,6 +1191,9 @@ async function createOnlineRoom() {
   $("online-match-status").textContent = "Ожидание старта";
   $("online-create-result").textContent = "Комната создана.";
   $("online-room-section").classList.remove("hidden");
+  $("online-map-select").value = onlineState.draft.map;
+  $("online-mode-select").value = onlineState.draft.mode;
+  $("online-ai-strategy").value = onlineState.draft.aiStrategy;
   renderOnlineParticipants();
   renderOnlinePool();
 }
@@ -1098,6 +1234,20 @@ async function joinOnlineRoom() {
   onlineState.room = room;
   onlineState.isCreator = false;
   onlineState.myRole = "viewer";
+  onlineState.draft = {
+    map: MAPS[0],
+    mode: "human_vs_human",
+    aiStrategy: "balanced",
+    captain1: null,
+    captain2: null,
+    pool: [],
+    available: [],
+    team1: [],
+    team2: [],
+    currentPickIndex: 0,
+    finished: false
+  };
+  syncOnlineControlsAccess();
 
   const { data: participant, error: pErr } = await supabase
     .from("room_participants")
@@ -1117,6 +1267,9 @@ async function joinOnlineRoom() {
   $("online-match-status").textContent = "Ожидание создателя";
   $("online-join-result").textContent = "Вход выполнен.";
   $("online-room-section").classList.remove("hidden");
+  $("online-map-select").value = onlineState.draft.map;
+  $("online-mode-select").value = onlineState.draft.mode;
+  $("online-ai-strategy").value = onlineState.draft.aiStrategy;
   renderOnlineParticipants();
   renderOnlinePool();
 }
@@ -1157,28 +1310,28 @@ async function refreshOnlineRooms() {
 
 function renderOnlinePool() {
   const box = $("online-pool-list");
-  if (!onlineState.draft) {
-    box.innerHTML = "<div class='hint'>Комната ещё не инициализирована.</div>";
-    return;
-  }
+  const draft = ensureOnlineDraftState();
   box.innerHTML = "";
-  const poolSet = new Set(onlineState.draft.pool || []);
+  const poolSet = new Set(draft.pool || []);
+  const cap1 = draft.captain1;
+  const cap2 = draft.captain2;
   players.forEach(p => {
+    const isCaptain = p.name === cap1 || p.name === cap2;
     const row = document.createElement("div");
-    row.className = "player-row" + (poolSet.has(p.name) ? " selected" : "");
+    row.className = "player-row" + (poolSet.has(p.name) ? " selected" : "") + (isCaptain ? " disabled" : "");
     const tierClass = "player-tier-" + (p.tier || "D");
     row.innerHTML = `
       <div>
         <span class="player-name ${tierClass}">${p.name}</span>
-        <span class="player-info">[${p.tier||"D"}] MMR: ${round(p.mmr)}, DPM: ${round(p.dpm)}</span>
+        <span class="player-info">[${p.tier||"D"}] MMR: ${round(p.mmr)}, DPM: ${round(p.dpm)}${isCaptain ? " — капитан" : ""}</span>
       </div>
     `;
-    if (onlineState.isCreator) {
+    if (onlineState.isCreator && !isCaptain) {
       row.addEventListener("click", () => {
         if (poolSet.has(p.name)) {
-          onlineState.draft.pool = onlineState.draft.pool.filter(n => n !== p.name);
+          draft.pool = draft.pool.filter(n => n !== p.name);
         } else {
-          onlineState.draft.pool.push(p.name);
+          draft.pool.push(p.name);
         }
         renderOnlinePool();
       });
@@ -1233,30 +1386,27 @@ function startOnlineDraft() {
     errBox.textContent = "Только создатель комнаты может запускать драфт.";
     return;
   }
-  if (!onlineState.draft) {
-    onlineState.draft = {
-      map: MAPS[0],
-      mode: "human_vs_human",
-      aiStrategy: "balanced",
-      pool: [],
-      available: [],
-      team1: [],
-      team2: [],
-      currentPickIndex: 0,
-      finished: false
-    };
-  }
-  const d = onlineState.draft;
+  const d = ensureOnlineDraftState();
   d.map = $("online-map-select").value;
   d.mode = $("online-mode-select").value;
   d.aiStrategy = $("online-ai-strategy").value;
+  const cap1 = d.captain1;
+  const cap2 = d.captain2;
+  if (!cap1 || !cap2) {
+    errBox.textContent = "Нужно выбрать двух разных капитанов перед стартом драфта.";
+    return;
+  }
+  if (cap1 === cap2) {
+    errBox.textContent = "Капитаны не могут совпадать.";
+    return;
+  }
   if (!d.pool || d.pool.length < 10) {
     errBox.textContent = "Нужно минимум 10 игроков в пуле для матча.";
     return;
   }
-  d.available = d.pool.slice();
-  d.team1 = [];
-  d.team2 = [];
+  d.available = d.pool.filter(n => n !== cap1 && n !== cap2);
+  d.team1 = [cap1];
+  d.team2 = [cap2];
   d.currentPickIndex = 0;
   d.finished = false;
 
@@ -1450,6 +1600,8 @@ async function adminLoadGlobal() {
       players = playersGlobal;
       renderPlayersList();
       renderMenuSummary();
+      populateOfflineCaptains();
+      populateOnlineCaptains();
     }
   } catch (e) {
     console.error(e);
