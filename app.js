@@ -204,6 +204,17 @@ let activeDataset = (function() {
 })();
 let players = []; // текущий рабочий массив
 
+// Применить выбранный источник игроков
+function applyDatasetSource(forceLocalFallback = false) {
+  if (activeDataset === "global" && playersGlobal.length && !forceLocalFallback) {
+    players = playersGlobal;
+    return;
+  }
+  players = playersLocal;
+  activeDataset = "local";
+  try { localStorage.setItem("mow2_dataset_source", activeDataset); } catch (e) {}
+}
+
 // Оффлайн драфт состояние
 const offlineDraft = {
   map: MAPS[0],
@@ -302,7 +313,7 @@ function loadPlayersLocal() {
     const cached = localStorage.getItem("mow2_players_local_v11");
     if (cached) {
       playersLocal = normalizePlayers(JSON.parse(cached));
-      players = playersLocal;
+      applyDatasetSource();
       populateOfflineCaptains();
       populateOnlineCaptains();
       renderOfflinePool();
@@ -316,7 +327,7 @@ function loadPlayersLocal() {
     .then(r => r.json())
     .then(data => {
       playersLocal = normalizePlayers(data);
-      players = playersLocal;
+      applyDatasetSource();
       populateOfflineCaptains();
       populateOnlineCaptains();
       renderOfflinePool();
@@ -325,12 +336,38 @@ function loadPlayersLocal() {
     .catch(err => {
       console.error("Failed to load players.json", err);
       playersLocal = [];
-      players = playersLocal;
+      applyDatasetSource();
       populateOfflineCaptains();
       populateOnlineCaptains();
       renderOfflinePool();
       renderOnlinePool();
     });
+}
+
+async function loadPlayersGlobal(forceApply = false) {
+  const supabase = initSupabase();
+  try {
+    const { data, error } = await supabase
+      .from("players_global")
+      .select("*");
+    if (error) throw error;
+    playersGlobal = normalizePlayers(data || []);
+    if (activeDataset === "global" || forceApply) {
+      applyDatasetSource();
+      renderPlayersList();
+      renderMenuSummary();
+      populateOfflineCaptains();
+      populateOnlineCaptains();
+      renderOfflinePool();
+      renderOnlinePool();
+    }
+  } catch (e) {
+    console.warn("Failed to load players_global", e);
+    if (activeDataset === "global") {
+      applyDatasetSource(true);
+      renderPlayersList();
+    }
+  }
 }
 
 function savePlayersLocal() {
@@ -1091,25 +1128,22 @@ function initPlayersScreen() {
   if (activeDataset === "global" && !playersGlobal.length) {
     activeDataset = "local";
     srcSel.value = "local";
-    players = playersLocal;
+    applyDatasetSource();
   }
   srcSel.addEventListener("change", () => {
     const val = srcSel.value;
     if (val === "global") {
+      activeDataset = "global";
+      try { localStorage.setItem("mow2_dataset_source", activeDataset); } catch (e) {}
       if (!playersGlobal.length) {
-        alert("Глобальная база ещё не загружена. Сначала админ должен загрузить её из Supabase.");
-        srcSel.value = "local";
-        activeDataset = "local";
-        players = playersLocal;
+        loadPlayersGlobal(true);
       } else {
-        activeDataset = "global";
-        players = playersGlobal;
+        applyDatasetSource();
       }
     } else {
       activeDataset = "local";
-      players = playersLocal;
+      applyDatasetSource();
     }
-    try { localStorage.setItem("mow2_dataset_source", activeDataset); } catch (e) {}
     populateOfflineCaptains();
     populateOnlineCaptains();
     renderPlayersList();
@@ -1993,7 +2027,7 @@ async function adminLoadGlobal() {
     playersGlobal = normalizePlayers(data || []);
     status.textContent = `Глобальная база загружена: ${playersGlobal.length} игроков. Переключись на неё в разделе «Игроки и статистика».`;
     if (activeDataset === "global") {
-      players = playersGlobal;
+      applyDatasetSource();
       renderPlayersList();
       renderMenuSummary();
       populateOfflineCaptains();
@@ -2115,6 +2149,9 @@ window.addEventListener("load", () => {
 
   applyStrategySource();
   loadStrategiesGlobal();
+  if (activeDataset === "global") {
+    loadPlayersGlobal(true);
+  }
 
   // Подгружаем глобальный админ-пароль из Supabase (если таблица настроена)
   loadAdminPasswordGlobal();
