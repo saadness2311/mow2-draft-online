@@ -208,6 +208,14 @@ button:disabled {
   gap: 6px;
 }
 
+button.danger {
+  background: #a94442;
+}
+
+button.danger:hover {
+  background: #8a2f2d;
+}
+
 .dual-select-row {
   display: flex;
   gap: 6px;

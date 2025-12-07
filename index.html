@@ -194,6 +194,14 @@
                 </div>
               </div>
               <div class="form-row">
+                <label>Источник стратегий ИИ</label>
+                <select id="players-strategy-source">
+                  <option value="global">Глобальные (Supabase)</option>
+                  <option value="local">Локальные (кэш браузера)</option>
+                </select>
+                <div class="hint small">Выбор сохраняется и влияет на подсказки и автопики в оффлайне/онлайне.</div>
+              </div>
+              <div class="form-row">
                 <label>Фильтры</label>
                 <input type="text" id="players-filter-name" placeholder="Поиск по имени..." />
               </div>
@@ -221,6 +229,30 @@
               <div id="players-list" class="scroll-panel tall"></div>
             </div>
             <div class="edit-panel" id="player-edit-panel"></div>
+          </div>
+        </div>
+
+        <div class="card" id="strategies-card">
+          <div class="card-header-row">
+            <h3>Управление стратегиями ИИ</h3>
+          </div>
+          <div class="card-row">
+            <div>
+              <div class="form-row">
+                <label>Редактор стратегий</label>
+                <textarea id="strategies-editor" rows="10" class="export-area"></textarea>
+              </div>
+              <div class="btn-row">
+                <button id="strategies-load-current">Подгрузить активные стратегии</button>
+                <button id="strategies-save-local">Сохранить локально</button>
+                <label class="file-btn">
+                  Импорт JSON
+                  <input type="file" id="strategies-import-file" accept="application/json" style="display:none;" />
+                </label>
+                <button id="strategies-export-file">Экспорт JSON</button>
+              </div>
+              <div class="hint small">Локальное сохранение кладёт данные в браузер и сразу включает источник «Локальные». Для глобального сохранения используй админ-панель.</div>
+            </div>
           </div>
         </div>
       </section>
@@ -273,6 +305,9 @@
                 <span>Код: <strong id="online-room-code">—</strong></span>
                 <span>Роль: <strong id="online-my-role">—</strong></span>
                 <span>Статус: <strong id="online-match-status">—</strong></span>
+              </div>
+              <div class="btn-row" style="margin-top:6px;">
+                <button id="online-delete-room" class="danger">Удалить комнату</button>
               </div>
 
               <div class="form-row" style="margin-top:8px;">

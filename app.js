@@ -32,7 +32,7 @@ const TIER_MULTIPLIERS = {
   "F": 0.7
 };
 
-// Базовые веса ролей по стратегиям
+// Базовые веса ролей по стратегиям (текущий активный набор)
 let ROLE_WEIGHTS = {
   balanced: {
     infantry: 2.0,
@@ -166,6 +166,11 @@ let ROLE_WEIGHTS = {
   }
 };
 
+// Локальные/глобальные наборы стратегий и выбор источника
+let roleWeightsLocal = null;
+let roleWeightsGlobal = null;
+let activeStrategySource = "global"; // global | local
+
 // Глобальные массивы игроков
 let playersLocal = [];
 let playersGlobal = [];
@@ -273,6 +278,7 @@ function loadPlayersLocal() {
       players = playersLocal;
       populateOfflineCaptains();
       populateOnlineCaptains();
+      renderOfflinePool();
       return;
     }
   } catch (e) {
@@ -285,6 +291,7 @@ function loadPlayersLocal() {
       players = playersLocal;
       populateOfflineCaptains();
       populateOnlineCaptains();
+      renderOfflinePool();
     })
     .catch(err => {
       console.error("Failed to load players.json", err);
@@ -292,6 +299,7 @@ function loadPlayersLocal() {
       players = playersLocal;
       populateOfflineCaptains();
       populateOnlineCaptains();
+      renderOfflinePool();
     });
 }
 
@@ -300,6 +308,29 @@ function savePlayersLocal() {
     localStorage.setItem("mow2_players_local_v11", JSON.stringify(playersLocal));
   } catch (e) {
     console.warn("Failed to save local players", e);
+  }
+}
+
+// --- Загрузка / сохранение стратегий ---
+function loadStrategiesLocal() {
+  try {
+    const cached = localStorage.getItem("mow2_ai_strategies_v11");
+    if (cached) {
+      roleWeightsLocal = JSON.parse(cached);
+    }
+  } catch (e) {
+    console.warn("Failed to load local strategies", e);
+  }
+  if (!roleWeightsLocal) {
+    roleWeightsLocal = JSON.parse(JSON.stringify(ROLE_WEIGHTS));
+  }
+}
+
+function saveStrategiesLocal() {
+  try {
+    localStorage.setItem("mow2_ai_strategies_v11", JSON.stringify(roleWeightsLocal));
+  } catch (e) {
+    console.warn("Failed to save strategies", e);
   }
 }
 
@@ -327,6 +358,38 @@ async function loadAdminPasswordGlobal() {
     }
   } catch (e) {
     console.warn("Failed to load admin password from Supabase", e);
+  }
+}
+
+async function loadStrategiesGlobal() {
+  try {
+    const supabase = initSupabase();
+    const { data, error } = await supabase
+      .from("admin_config")
+      .select("value")
+      .eq("key", "ai_strategies")
+      .maybeSingle();
+    if (!error && data && data.value) {
+      roleWeightsGlobal = JSON.parse(data.value);
+    }
+  } catch (e) {
+    console.warn("Failed to load global strategies", e);
+  }
+  if (!roleWeightsGlobal) {
+    roleWeightsGlobal = JSON.parse(JSON.stringify(ROLE_WEIGHTS));
+  }
+  applyStrategySource();
+}
+
+function applyStrategySource() {
+  const stored = localStorage.getItem("mow2_strategy_source");
+  if (stored === "local" || stored === "global") {
+    activeStrategySource = stored;
+  }
+  if (activeStrategySource === "local" && roleWeightsLocal) {
+    ROLE_WEIGHTS = roleWeightsLocal;
+  } else if (roleWeightsGlobal) {
+    ROLE_WEIGHTS = roleWeightsGlobal;
   }
 }
 
@@ -701,13 +764,13 @@ function renderOfflineDraft() {
       value: calcPlayerValue(p, context)
     })).sort((a,b) => b.value - a.value);
 
-    const top = scored.slice(0,5);
-    if (top.length) {
+    const hints = buildAiHints(scored, context);
+    if (hints && hints.length) {
       suggestionsHtml = "<div><strong>Подсказка ИИ:</strong><br/>";
-      top.forEach((s,i) => {
-        suggestionsHtml += `${i===0?"• Лучший пик:":"• Альтернатива:"} ${s.player.name} [${s.player.tier}] — MMR: ${round(s.player.mmr)}, DPM: ${round(s.player.dpm)}<br/>`;
+      hints.forEach((h,i) => {
+        suggestionsHtml += `${i===0?"• Лучший пик:":"• Альтернатива:"} ${h.name} [${h.tier}] — MMR: ${h.mmr}, DPM: ${h.dpm} (${h.reason})<br/>`;
       });
-      suggestionsHtml += `</div><div class="hint small">Стратегия стороны: <strong>${strategy}</strong>.</div>`;
+      suggestionsHtml += `</div><div class="hint small">Стратегия стороны: <strong>${strategy}</strong>. ИИ учитывает роли команды и угрозы противника.</div>`;
     }
 
     if (!offlineDraft.finished) {
@@ -864,6 +927,32 @@ function calcPlayerValue(p, ctx) {
   return total + smallRandom;
 }
 
+function buildAiHints(scored, ctx) {
+  const shortlist = scored.slice(0, 6);
+  if (!shortlist.length) return null;
+  const needRoles = ctx.side === "team1" ? countRolesByNames(ctx.team1) : countRolesByNames(ctx.team2);
+  const enemyRoles = ctx.side === "team1" ? countRolesByNames(ctx.team2) : countRolesByNames(ctx.team1);
+  const needText = (p) => {
+    const roles = p.roles || [];
+    const hasCoverage = roles.find(r => enemyRoles[r]);
+    const lack = roles.find(r => !needRoles[r]);
+    if (ctx.strategy === "counter_enemy" && hasCoverage) return "контрит вражеские роли";
+    if (lack) return "закрывает пустую роль";
+    if (roles.includes("heavy_tanks") || roles.includes("tanks")) return "усилит броню";
+    if (roles.includes("artillery") || roles.includes("spg")) return "даст артподдержку";
+    if (roles.includes("aa_artillery")) return "усилит ПВО";
+    return "высокий потенциал";
+  };
+  const picks = shortlist.slice(0,3).map(s => ({
+    name: s.player.name,
+    tier: s.player.tier,
+    mmr: round(s.player.mmr),
+    dpm: round(s.player.dpm),
+    reason: needText(s.player)
+  }));
+  return picks;
+}
+
 function countRolesByNames(names) {
   const counter = {};
   names.forEach(n => {
@@ -908,6 +997,16 @@ function initPlayersScreen() {
     renderMenuSummary();
   });
 
+  const strategySourceSel = $("players-strategy-source");
+  if (strategySourceSel) {
+    strategySourceSel.value = activeStrategySource;
+    strategySourceSel.addEventListener("change", () => {
+      activeStrategySource = strategySourceSel.value;
+      localStorage.setItem("mow2_strategy_source", activeStrategySource);
+      applyStrategySource();
+    });
+  }
+
   nameFilter.addEventListener("input", renderPlayersList);
   tierFilter.addEventListener("change", renderPlayersList);
 
@@ -941,6 +1040,49 @@ function initPlayersScreen() {
     };
     reader.readAsText(file);
   });
+
+  const stratEditor = $("strategies-editor");
+  const stratLoadBtn = $("strategies-load-current");
+  const stratSaveLocal = $("strategies-save-local");
+  const stratImport = $("strategies-import-file");
+  const stratExport = $("strategies-export-file");
+  if (stratEditor && stratLoadBtn && stratSaveLocal && stratImport && stratExport) {
+    stratLoadBtn.addEventListener("click", () => {
+      stratEditor.value = JSON.stringify(ROLE_WEIGHTS, null, 2);
+    });
+    stratSaveLocal.addEventListener("click", () => {
+      try {
+        const parsed = JSON.parse(stratEditor.value || "{}");
+        roleWeightsLocal = parsed;
+        saveStrategiesLocal();
+        activeStrategySource = "local";
+        localStorage.setItem("mow2_strategy_source", activeStrategySource);
+        applyStrategySource();
+        alert("Стратегии сохранены локально и активированы.");
+      } catch (e) {
+        alert("Не удалось сохранить: проверь JSON.");
+      }
+    });
+    stratImport.addEventListener("change", (ev) => {
+      const file = ev.target.files && ev.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        stratEditor.value = reader.result;
+      };
+      reader.readAsText(file);
+    });
+    stratExport.addEventListener("click", () => {
+      const dataStr = stratEditor.value || JSON.stringify(ROLE_WEIGHTS, null, 2);
+      const blob = new Blob([dataStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "mow2_strategies.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
 
   renderPlayersList();
 }
@@ -1060,6 +1202,7 @@ function initOnlineScreen() {
   $("online-create-room").addEventListener("click", createOnlineRoom);
   $("online-join-room").addEventListener("click", joinOnlineRoom);
   $("online-refresh-rooms").addEventListener("click", refreshOnlineRooms);
+  $("online-delete-room").addEventListener("click", deleteOnlineRoom);
 
   const mapSel = $("online-map-select");
   MAPS.forEach(m => {
@@ -1308,6 +1451,26 @@ async function refreshOnlineRooms() {
   });
 }
 
+async function deleteOnlineRoom() {
+  if (!onlineState.isCreator || !onlineState.room) return;
+  if (!confirm("Удалить комнату и всех участников?")) return;
+  const supabase = initSupabase();
+  const { error } = await supabase
+    .from("rooms")
+    .delete()
+    .eq("id", onlineState.room.id);
+  if (error) {
+    alert("Не удалось удалить комнату");
+    return;
+  }
+  onlineState.room = null;
+  onlineState.isCreator = false;
+  onlineState.draft = null;
+  $("online-room-section").classList.add("hidden");
+  $("online-create-result").textContent = "Комната удалена.";
+  refreshOnlineRooms();
+}
+
 function renderOnlinePool() {
   const box = $("online-pool-list");
   const draft = ensureOnlineDraftState();
@@ -1479,14 +1642,14 @@ function renderOnlineDraft() {
     player: p,
     value: calcPlayerValue(p, context)
   })).sort((a,b)=> b.value - a.value);
-  const top = scored.slice(0,5);
+  const hints = buildAiHints(scored, context);
   let suggestionsHtml = "";
-  if (top.length) {
+  if (hints && hints.length) {
     suggestionsHtml = "<div><strong>Подсказка ИИ:</strong><br/>";
-    top.forEach((s,i) => {
-      suggestionsHtml += `${i===0?"• Лучший пик:":"• Альтернатива:"} ${s.player.name} [${s.player.tier}] — MMR: ${round(s.player.mmr)}, DPM: ${round(s.player.dpm)}<br/>`;
+    hints.forEach((h,i) => {
+      suggestionsHtml += `${i===0?"• Лучший пик:":"• Альтернатива:"} ${h.name} [${h.tier}] — MMR: ${h.mmr}, DPM: ${h.dpm} (${h.reason})<br/>`;
     });
-    suggestionsHtml += `</div><div class="hint small">Стратегия ИИ: <strong>${d.aiStrategy}</strong>.</div>`;
+    suggestionsHtml += `</div><div class="hint small">Стратегия ИИ: <strong>${d.aiStrategy}</strong>. Учитываем роли союзников и угрозы противника.</div>`;
   }
   suggEl.innerHTML = suggestionsHtml;
 
@@ -1639,15 +1802,31 @@ async function adminSaveGlobal() {
 function adminStrategiesLoad() {
   const ta = $("admin-strategies-json");
   ta.value = JSON.stringify(ROLE_WEIGHTS, null, 2);
+  $("admin-actions-status").textContent = "Текущий набор стратегий загружен в редактор.";
 }
 
-function adminStrategiesSave() {
+async function adminStrategiesSave() {
   const ta = $("admin-strategies-json");
   try {
     const obj = JSON.parse(ta.value);
     ROLE_WEIGHTS = obj;
-    localStorage.setItem("mow2_ai_strategies_v11", JSON.stringify(ROLE_WEIGHTS));
-    $("admin-actions-status").textContent = "Стратегии ИИ сохранены локально.";
+    roleWeightsLocal = obj;
+    saveStrategiesLocal();
+    applyStrategySource();
+    const status = $("admin-actions-status");
+    status.textContent = "Стратегии сохранены локально. Пытаемся отправить в Supabase...";
+    try {
+      const supabase = initSupabase();
+      const { error } = await supabase
+        .from("admin_config")
+        .upsert({ key: "ai_strategies", value: JSON.stringify(obj) });
+      if (error) throw error;
+      roleWeightsGlobal = obj;
+      status.textContent = "Стратегии сохранены локально и в Supabase.";
+    } catch (e) {
+      console.warn("Failed to save strategies globally", e);
+      status.textContent = "Локально сохранено. Ошибка сохранения в Supabase.";
+    }
   } catch (e) {
     alert("Ошибка в JSON стратегий.");
   }
@@ -1683,21 +1862,15 @@ async function adminChangePassword() {
 
 window.addEventListener("load", () => {
   loadPlayersLocal();
+  loadStrategiesLocal();
   initMenu();
   initOffline();
   initPlayersScreen();
   initOnlineScreen();
   initAdminScreen();
 
-  // Подгружаем стратегии ИИ из localStorage, если есть
-  try {
-    const saved = localStorage.getItem("mow2_ai_strategies_v11");
-    if (saved) {
-      ROLE_WEIGHTS = JSON.parse(saved);
-    }
-  } catch (e) {
-    console.warn("Failed to load AI strategies override", e);
-  }
+  applyStrategySource();
+  loadStrategiesGlobal();
 
   // Подгружаем глобальный админ-пароль из Supabase (если таблица настроена)
   loadAdminPasswordGlobal();
