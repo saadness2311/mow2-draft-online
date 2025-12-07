@@ -621,6 +621,9 @@ function populateOnlineCaptains() {
       sel2.value = "";
     }
     draft.pool = (draft.pool || []).filter(n => n !== draft.captain1 && n !== draft.captain2);
+    draft.available = (draft.available || []).filter(n => n !== draft.captain1 && n !== draft.captain2);
+    draft.team1 = draft.team1.filter(n => n === draft.captain1 || n !== draft.captain2);
+    if (draft.team1.indexOf(draft.captain1) === -1 && draft.captain1) draft.team1.unshift(draft.captain1);
     renderOnlinePool();
   };
   sel2.onchange = () => {
@@ -630,6 +633,9 @@ function populateOnlineCaptains() {
       sel1.value = "";
     }
     draft.pool = (draft.pool || []).filter(n => n !== draft.captain1 && n !== draft.captain2);
+    draft.available = (draft.available || []).filter(n => n !== draft.captain1 && n !== draft.captain2);
+    draft.team2 = draft.team2.filter(n => n === draft.captain2 || n !== draft.captain1);
+    if (draft.team2.indexOf(draft.captain2) === -1 && draft.captain2) draft.team2.unshift(draft.captain2);
     renderOnlinePool();
   };
 }
@@ -768,9 +774,10 @@ function renderOfflineDraft() {
   const step = DRAFT_ORDER[offlineDraft.currentPickIndex];
   if (!step) {
     offlineDraft.finished = true;
-    suggestionsHtml = "<div class='hint'>Драфт завершён. Используй экспорт снизу, чтобы скопировать состав.</div>";
+    suggestionsHtml = "<div class='hint strong'>Драфт завершён. Используй экспорт снизу, чтобы скопировать состав.</div>";
     availEl.innerHTML = "<div class='hint'>Все пики распределены.</div>";
     suggEl.innerHTML = suggestionsHtml;
+    $("online-match-status")?.textContent = "Завершён";
     return;
   } else {
     const side = step.team;
@@ -801,10 +808,10 @@ function renderOfflineDraft() {
     }
 
     if (!offlineDraft.finished) {
-      if (!isHumanTurn && (offlineDraft.mode === "human_vs_ai" || offlineDraft.mode === "ai_vs_ai")) {
-        aiPickOfflineCurrentSide(context, scored);
-      }
-    }
+  if (!isHumanTurn && (offlineDraft.mode === "human_vs_ai" || offlineDraft.mode === "ai_vs_ai")) {
+    aiPickOfflineCurrentSide(context, scored);
+  }
+}
   }
   suggEl.innerHTML = suggestionsHtml;
 
@@ -1393,7 +1400,8 @@ async function createOnlineRoom() {
   $("online-room-section").classList.remove("hidden");
   $("online-map-select").value = onlineState.draft.map;
   $("online-mode-select").value = onlineState.draft.mode;
-  $("online-ai-strategy").value = onlineState.draft.aiStrategy;
+  $("online-ai-strategy-1").value = onlineState.draft.aiStrategy1;
+  $("online-ai-strategy-2").value = onlineState.draft.aiStrategy2;
   renderOnlineParticipants();
   renderOnlinePool();
 }
@@ -1470,7 +1478,8 @@ async function joinOnlineRoom() {
   $("online-room-section").classList.remove("hidden");
   $("online-map-select").value = onlineState.draft.map;
   $("online-mode-select").value = onlineState.draft.mode;
-  $("online-ai-strategy").value = onlineState.draft.aiStrategy;
+  $("online-ai-strategy-1").value = onlineState.draft.aiStrategy1;
+  $("online-ai-strategy-2").value = onlineState.draft.aiStrategy2;
   renderOnlineParticipants();
   renderOnlinePool();
 }
