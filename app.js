@@ -749,16 +749,7 @@ function renderOfflinePool() {
 function startOfflineDraft() {
   const errBox = $("offline-error");
   errBox.textContent = "";
-
-  // Капитаны обязательны и не могут совпадать
-  if (!offlineDraft.captain1 || !offlineDraft.captain2) {
-    errBox.textContent = "Нужно выбрать капитанов для Команды 1 и Команды 2 перед стартом драфта.";
-    return;
-  }
-  if (offlineDraft.captain1 === offlineDraft.captain2) {
-    errBox.textContent = "Капитаны двух команд не могут быть одним и тем же игроком.";
-    return;
-  }
+  if (!validateOfflineCaptains(errBox)) return;
 
   // В пуле должны быть хотя бы 8 игроков (по 4 на докомплектование к капитанам)
   if (!offlineDraft.pool || offlineDraft.pool.length < 8) {
@@ -774,6 +765,19 @@ function startOfflineDraft() {
   offlineDraft.finished = false;
 
   renderOfflineDraft();
+}
+
+function validateOfflineCaptains(errBox) {
+  const box = errBox || { textContent: "" };
+  if (!offlineDraft.captain1 || !offlineDraft.captain2) {
+    box.textContent = "Нужно выбрать капитанов для Команды 1 и Команды 2 перед стартом драфта.";
+    return false;
+  }
+  if (offlineDraft.captain1 === offlineDraft.captain2) {
+    box.textContent = "Капитаны двух команд не могут совпадать.";
+    return false;
+  }
+  return true;
 }
 
 function getOfflineStrategyForSide(side) {
@@ -1727,8 +1731,8 @@ async function renderOnlineParticipants() {
     parts = data || [];
   } catch (e) {
     console.warn("Ошибка загрузки участников", e);
-    listEl.innerHTML = "<div class='hint'>Список участников недоступен. Попробуй обновить комнату.</div>";
-    creatorPanel.classList.add("hidden");
+    listEl.innerHTML = "<div class='hint'>Не удалось загрузить участников. Попробуйте обновить комнату.</div>";
+    if (creatorPanel) creatorPanel.classList.add("hidden");
     return;
   }
   if (!parts.length) {
@@ -1749,9 +1753,7 @@ async function renderOnlineParticipants() {
     creatorPanel.classList.remove("hidden");
     creatorPanel.innerHTML = `
       <div><strong>Панель создателя комнаты</strong></div>
-      <div class="hint small">
-        Здесь позже можно будет назначать капитанов, кикать участников и т.д. (упрощено для V11).
-      </div>
+      <div class="hint small">Создатель остаётся капитаном 1. Здесь можно управлять пулом и стартовать драфт.</div>
     `;
   } else {
     creatorPanel.classList.add("hidden");
@@ -1772,22 +1774,14 @@ function startOnlineDraft() {
   d.aiStrategy2 = $("online-ai-strategy-2").value;
   const cap1 = d.captain1;
   const cap2 = d.captain2;
-  if (!cap1 || !cap2) {
-    errBox.textContent = "Нужно выбрать двух разных капитанов перед стартом драфта.";
-    return;
-  }
-  if (cap1 === cap2) {
-    errBox.textContent = "Капитаны не могут совпадать.";
-    return;
-  }
   if (!d.pool || d.pool.length < 10) {
     errBox.textContent = "Нужно минимум 10 игроков в пуле для матча.";
     return;
   }
   stripCaptainsFromDraft(d);
   d.available = d.pool.slice();
-  d.team1 = [cap1];
-  d.team2 = [cap2];
+  d.team1 = cap1 ? [cap1] : [];
+  d.team2 = cap2 ? [cap2] : [];
   d.currentPickIndex = 0;
   d.finished = false;
 
