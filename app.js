@@ -973,6 +973,9 @@ function renderOfflineDraft() {
   const picksEl = $("offline-pick-order");
   const suggEl = $("offline-suggestions");
   const finishEl = $("offline-finish");
+  const pickStatusEl = $("offline-pick-status");
+  const t1CountEl = $("offline-team1-count");
+  const t2CountEl = $("offline-team2-count");
 
   team1El.innerHTML = "";
   offlineDraft.team1.forEach(name => {
@@ -990,6 +993,9 @@ function renderOfflineDraft() {
     team2El.appendChild(li);
   });
 
+  if (t1CountEl) t1CountEl.textContent = `(${offlineDraft.team1.length}/5)`;
+  if (t2CountEl) t2CountEl.textContent = `(${offlineDraft.team2.length}/5)`;
+
   picksEl.innerHTML = "";
   DRAFT_ORDER.forEach((step, idx) => {
     const chip = document.createElement("div");
@@ -1000,6 +1006,17 @@ function renderOfflineDraft() {
     chip.textContent = `Пик ${step.pick}: Капитан ${step.captain === "cap1" ? "1" : "2"}`;
     picksEl.appendChild(chip);
   });
+
+  const picksDone = Math.min(offlineDraft.currentPickIndex, DRAFT_ORDER.length);
+  const picksLeft = Math.max(0, DRAFT_ORDER.length - picksDone);
+  if (pickStatusEl) {
+    const currentStep = DRAFT_ORDER[offlineDraft.currentPickIndex];
+    if (!currentStep) {
+      pickStatusEl.textContent = "Драфт завершён";
+    } else {
+      pickStatusEl.textContent = `Текущий ход: Команда ${currentStep.team === "team1" ? "1" : "2"} · Пик ${picksDone + 1}/8 · Осталось: ${picksLeft}`;
+    }
+  }
 
   availEl.innerHTML = "";
   const availablePlayers = offlineDraft.available
@@ -1012,9 +1029,8 @@ function renderOfflineDraft() {
   const step = DRAFT_ORDER[offlineDraft.currentPickIndex];
   if (!step) {
     offlineDraft.finished = true;
-    suggestionsHtml = "<div class='hint strong'>Драфт завершён. Используй экспорт снизу, чтобы скопировать состав.</div>";
     availEl.innerHTML = "<div class='hint'>Все пики распределены.</div>";
-    suggEl.innerHTML = suggestionsHtml;
+    suggEl.innerHTML = "<div class='hint'>Драфт завершён. Экспортируй состав ниже.</div>";
     if (finishEl) {
       finishEl.classList.remove("hidden");
       finishEl.innerHTML = "<strong>Драфт завершён.</strong> Капитан + 4 игрока у каждой команды подобраны.";
@@ -1043,11 +1059,9 @@ function renderOfflineDraft() {
 
   const hints = buildAiHints(scored, context);
   if (hints && hints.length) {
-    suggestionsHtml = "<div><strong>Подсказка ИИ:</strong><br/>";
-    hints.forEach((h,i) => {
-      suggestionsHtml += `${i===0?"• Лучший пик:":"• Альтернатива:"} ${h.name} [${h.tier}] — MMR: ${h.mmr}, DPM: ${h.dpm} (${h.reason})<br/>`;
-    });
-    suggestionsHtml += `</div><div class="hint small">Стратегия стороны: <strong>${strategy}</strong>. ИИ учитывает роли команды и угрозы противника.</div>`;
+    const best = hints[0];
+    const alts = hints.slice(1).map(h => h.name).join(", ");
+    suggestionsHtml = `<div><strong>Подсказка ИИ:</strong> Лучший пик: ${best.name} (${best.mmr})<br/>Альтернативы: ${alts || "—"}<br/><span class='hint small'>Стратегия: ${strategy}</span></div>`;
   }
   suggEl.innerHTML = suggestionsHtml;
 
@@ -1525,6 +1539,8 @@ function initOnlineScreen() {
   $("online-refresh-rooms").addEventListener("click", refreshOnlineRooms);
   $("online-delete-room").addEventListener("click", deleteOnlineRoom);
   $("online-refresh-room").addEventListener("click", refreshOnlineRoom);
+  const refreshStateBtn = $("online-refresh-state");
+  if (refreshStateBtn) refreshStateBtn.addEventListener("click", refreshOnlineRoom);
   $("online-admin-verify").addEventListener("click", () => {
     const pwd = ($("online-admin-pass").value || "").trim();
     if (pwd === onlineState.adminPassword) {
@@ -2005,6 +2021,9 @@ function renderOnlineDraft() {
   const picksEl = $("online-pick-order");
   const suggEl = $("online-suggestions");
   const finishEl = $("online-finish");
+  const pickStatusEl = $("online-pick-status");
+  const t1CountEl = $("online-team1-count");
+  const t2CountEl = $("online-team2-count");
 
   team1El.innerHTML = "";
   d.team1.forEach(name => {
@@ -2021,6 +2040,9 @@ function renderOnlineDraft() {
     team2El.appendChild(li);
   });
 
+  if (t1CountEl) t1CountEl.textContent = `(${d.team1.length}/5)`;
+  if (t2CountEl) t2CountEl.textContent = `(${d.team2.length}/5)`;
+
   picksEl.innerHTML = "";
   DRAFT_ORDER.forEach((step, idx) => {
     const chip = document.createElement("div");
@@ -2032,7 +2054,23 @@ function renderOnlineDraft() {
     picksEl.appendChild(chip);
   });
 
+  const picksDone = Math.min(d.currentPickIndex, DRAFT_ORDER.length);
+  const picksLeft = Math.max(0, DRAFT_ORDER.length - picksDone);
+  if (pickStatusEl) {
+    const currentStep = DRAFT_ORDER[d.currentPickIndex];
+    if (!currentStep) {
+      pickStatusEl.textContent = "Драфт завершён";
+    } else {
+      pickStatusEl.textContent = `Текущий ход: Команда ${currentStep.team === "team1" ? "1" : "2"} · Пик ${picksDone + 1}/8 · Осталось: ${picksLeft}`;
+    }
+  }
+
   const step = DRAFT_ORDER[d.currentPickIndex];
+  if (!d.pool.length && !d.available.length && d.team1.length + d.team2.length <= 0) {
+    availEl.innerHTML = "<div class='hint'>Драфт ещё не начат.</div>";
+    suggEl.innerHTML = "";
+    return;
+  }
   if (!step) {
     d.finished = true;
     $("online-match-status").textContent = "Завершён";
@@ -2073,11 +2111,9 @@ function renderOnlineDraft() {
   const hints = buildAiHints(scored, context);
   let suggestionsHtml = "";
   if (hints && hints.length) {
-    suggestionsHtml = "<div><strong>Подсказка ИИ:</strong><br/>";
-    hints.forEach((h,i) => {
-      suggestionsHtml += `${i===0?"• Лучший пик:":"• Альтернатива:"} ${h.name} [${h.tier}] — MMR: ${h.mmr}, DPM: ${h.dpm} (${h.reason})<br/>`;
-    });
-    suggestionsHtml += `</div><div class="hint small">Стратегия ИИ: <strong>${getOnlineStrategyForSide(side)}</strong>. Учитываем роли союзников и угрозы противника.</div>`;
+    const best = hints[0];
+    const alts = hints.slice(1).map(h => h.name).join(", ");
+    suggestionsHtml = `<div><strong>Подсказка ИИ:</strong> Лучший пик: ${best.name} (${best.mmr})<br/>Альтернативы: ${alts || "—"}<br/><span class='hint small'>Стратегия: ${getOnlineStrategyForSide(side)}</span></div>`;
   }
   suggEl.innerHTML = suggestionsHtml;
 

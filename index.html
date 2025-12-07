@@ -32,19 +32,19 @@
         <div class="menu-grid">
           <div class="menu-card" data-target="offline">
             <h2>Оффлайн драфт</h2>
-            <p>Тренируй драфт: ты против ИИ, ИИ против ИИ или ручной режим.</p>
+            <p>Быстрый драфт: ты против ИИ, ИИ против ИИ или ручной режим.</p>
           </div>
           <div class="menu-card" data-target="online">
             <h2>Онлайн комнаты</h2>
-            <p>Создавай комнаты, приглашай капитанов и зрителей, драфтьте вместе.</p>
+            <p>Создай комнату, назначь капитанов и драфтьте вместе.</p>
           </div>
           <div class="menu-card" data-target="players">
             <h2>Игроки и статистика</h2>
-            <p>Редактируй MMR, DPM и роли игроков. Эта база используется ИИ.</p>
+            <p>Управление базой игроков для подсказок ИИ.</p>
           </div>
           <div class="menu-card" data-target="admin">
             <h2>Админ-панель</h2>
-            <p>Глобальная база игроков, стратегии ИИ и настройка паролей.</p>
+            <p>Глобальная база, стратегии ИИ, сервисные действия.</p>
           </div>
         </div>
       </section>
@@ -82,7 +82,7 @@
                     <option value="">— не выбран —</option>
                   </select>
                 </div>
-                <div class="hint small">Капитаны задаются до драфта и сразу входят в состав своих команд.</div>
+              <div class="hint small">Капитаны сразу занимают первый слот команды.</div>
               </div>
 <div class="form-row" id="offline-human-side-row">
                 <label>За какого капитана играешь ты?</label>
@@ -144,11 +144,12 @@
         <div class="card">
           <div class="draft-layout">
             <div class="team-column">
-              <h4>Команда 1</h4>
+              <h4>Команда 1 <span id="offline-team1-count" class="count-tag"></span></h4>
               <ul id="offline-team1" class="team-list"></ul>
             </div>
             <div class="center-column">
               <h4>Очередность пиков</h4>
+              <div id="offline-pick-status" class="status-line"></div>
               <div id="offline-pick-order" class="pick-order-row"></div>
               <h4 style="margin-top:8px;">Доступные игроки</h4>
               <div id="offline-available" class="scroll-panel tall"></div>
@@ -156,7 +157,7 @@
               <div id="offline-finish" class="hint-block hidden"></div>
             </div>
             <div class="team-column">
-              <h4>Команда 2</h4>
+              <h4>Команда 2 <span id="offline-team2-count" class="count-tag"></span></h4>
               <ul id="offline-team2" class="team-list"></ul>
             </div>
           </div>
@@ -188,9 +189,7 @@
                   <option value="local">Локальная база (только у тебя)</option>
                   <option value="global">Глобальная база (общие сведения)</option>
                 </select>
-                <div class="hint small">
-                  Глобальную базу может обновлять только админ. Игроки могут её использовать для подсказок ИИ.
-                </div>
+                <div class="hint small">Глобальную базу меняет только админ; выбери источник для подсказок ИИ.</div>
               </div>
               <div class="form-row">
                 <label>Источник стратегий ИИ</label>
@@ -198,7 +197,7 @@
                   <option value="global">Глобальные (Supabase)</option>
                   <option value="local">Локальные (кэш браузера)</option>
                 </select>
-                <div class="hint small">Выбор сохраняется и влияет на подсказки и автопики в оффлайне/онлайне.</div>
+                <div class="hint small">Выбор сохраняется и влияет на подсказки/автопики.</div>
               </div>
               <div class="form-row">
                 <label>Фильтры</label>
@@ -336,7 +335,7 @@
                     <option value="">— не выбран —</option>
                   </select>
                 </div>
-                <div class="hint small">Доступно только создателю. Капитаны занимают первый слот своих команд.</div>
+                <div class="hint small">Только создатель: капитаны занимают первый слот команд.</div>
               </div>
                 <div class="form-row">
                   <label>Режим</label>
@@ -383,11 +382,12 @@
                     <button id="online-pool-clear">Очистить</button>
                   </div>
                   <div id="online-pool-list" class="scroll-panel"></div>
-                  <div class="hint small">
-                    Управлять пулом игроков и запускать драфт может только создатель комнаты.
-                  </div>
+                  <div class="hint small">Пул и старт драфта контролирует создатель.</div>
                 </div>
-                <button id="online-start-draft" class="primary-btn">Запустить / передрафтить матч</button>
+                <div class="btn-row">
+                  <button id="online-start-draft" class="primary-btn">Запустить / передрафтить матч</button>
+                  <button id="online-refresh-state" type="button">Обновить состояние</button>
+                </div>
                 <div id="online-error" class="error-text"></div>
               </div>
             </div>
@@ -402,11 +402,12 @@
           <div id="online-draft-block" class="card" style="margin-top:8px;">
             <div class="draft-layout">
               <div class="team-column">
-                <h4>Команда 1</h4>
+                <h4>Команда 1 <span id="online-team1-count" class="count-tag"></span></h4>
                 <ul id="online-team1" class="team-list"></ul>
               </div>
               <div class="center-column">
                 <h4>Очередность пиков</h4>
+                <div id="online-pick-status" class="status-line"></div>
                 <div id="online-pick-order" class="pick-order-row"></div>
                 <h4 style="margin-top:8px;">Доступные игроки</h4>
                 <div id="online-available" class="scroll-panel tall"></div>
@@ -414,7 +415,7 @@
                 <div id="online-finish" class="hint-block hidden"></div>
               </div>
               <div class="team-column">
-                <h4>Команда 2</h4>
+                <h4>Команда 2 <span id="online-team2-count" class="count-tag"></span></h4>
                 <ul id="online-team2" class="team-list"></ul>
               </div>
             </div>
