@@ -841,52 +841,42 @@ function renderOfflineDraft() {
       finishEl.innerHTML = "<strong>Драфт завершён.</strong> Капитан + 4 игрока у каждой команды подобраны.";
     }
     return;
-  } else {
-    if (finishEl) finishEl.classList.add("hidden");
-    const side = step.team;
-    const isHumanTurn = offlineDraft.mode === "manual"
-      || (offlineDraft.mode === "human_vs_ai" && offlineDraft.humanSide === side);
-    const strategy = getOfflineStrategyForSide(side);
-    const context = {
-      team1: offlineDraft.team1,
-      team2: offlineDraft.team2,
-      side,
-      enemySide: side === "team1" ? "team2" : "team1",
-      mode: offlineDraft.mode,
-      strategy
-    };
-
-    const scored = availablePlayers.map(p => ({
-      player: p,
-      value: calcPlayerValue(p, context)
-    })).sort((a,b) => b.value - a.value);
-
-    const hints = buildAiHints(scored, context);
-    if (hints && hints.length) {
-      suggestionsHtml = "<div><strong>Подсказка ИИ:</strong><br/>";
-      hints.forEach((h,i) => {
-        suggestionsHtml += `${i===0?"• Лучший пик:":"• Альтернатива:"} ${h.name} [${h.tier}] — MMR: ${h.mmr}, DPM: ${h.dpm} (${h.reason})<br/>`;
-      });
-      suggestionsHtml += `</div><div class="hint small">Стратегия стороны: <strong>${strategy}</strong>. ИИ учитывает роли команды и угрозы противника.</div>`;
-    }
-
-    if (!offlineDraft.finished) {
-  if (!isHumanTurn && (offlineDraft.mode === "human_vs_ai" || offlineDraft.mode === "ai_vs_ai")) {
-    aiPickOfflineCurrentSide(context, scored);
   }
-}
 
-function pickWithAiPreference(topList) {
-  if (!topList || !topList.length) return null;
-  const altChance = Math.min(Math.max(aiBehavior?.altPickChance || 0, 0), 1);
-  if (topList.length > 1 && Math.random() < altChance) {
-    const altIndex = Math.min(topList.length - 1, 2);
-    return topList[Math.floor(Math.random() * (altIndex + 1))];
-  }
-  return topList[0];
-}
+  if (finishEl) finishEl.classList.add("hidden");
+  const side = step.team;
+  const isHumanTurn = offlineDraft.mode === "manual"
+    || (offlineDraft.mode === "human_vs_ai" && offlineDraft.humanSide === side);
+  const strategy = getOfflineStrategyForSide(side);
+  const context = {
+    team1: offlineDraft.team1,
+    team2: offlineDraft.team2,
+    side,
+    enemySide: side === "team1" ? "team2" : "team1",
+    mode: offlineDraft.mode,
+    strategy
+  };
+
+  const scored = availablePlayers.map(p => ({
+    player: p,
+    value: calcPlayerValue(p, context)
+  })).sort((a,b) => b.value - a.value);
+
+  const hints = buildAiHints(scored, context);
+  if (hints && hints.length) {
+    suggestionsHtml = "<div><strong>Подсказка ИИ:</strong><br/>";
+    hints.forEach((h,i) => {
+      suggestionsHtml += `${i===0?"• Лучший пик:":"• Альтернатива:"} ${h.name} [${h.tier}] — MMR: ${h.mmr}, DPM: ${h.dpm} (${h.reason})<br/>`;
+    });
+    suggestionsHtml += `</div><div class="hint small">Стратегия стороны: <strong>${strategy}</strong>. ИИ учитывает роли команды и угрозы противника.</div>`;
   }
   suggEl.innerHTML = suggestionsHtml;
+
+  // Автопик ИИ, если сейчас его ход
+  if (!offlineDraft.finished && !isHumanTurn && (offlineDraft.mode === "human_vs_ai" || offlineDraft.mode === "ai_vs_ai")) {
+    aiPickOfflineCurrentSide(context, scored);
+    return; // после автопика будет повторный рендер
+  }
 
   const currentStep = DRAFT_ORDER[offlineDraft.currentPickIndex];
   availablePlayers.forEach(p => {
@@ -900,10 +890,10 @@ function pickWithAiPreference(topList) {
       </div>
     `;
     if (currentStep) {
-      const side = currentStep.team;
-      const isHumanTurn = offlineDraft.mode === "manual"
-        || (offlineDraft.mode === "human_vs_ai" && offlineDraft.humanSide === side);
-      if (isHumanTurn) {
+      const sideTurn = currentStep.team;
+      const isTurnHuman = offlineDraft.mode === "manual"
+        || (offlineDraft.mode === "human_vs_ai" && offlineDraft.humanSide === sideTurn);
+      if (isTurnHuman) {
         row.addEventListener("click", () => {
           humanPickOffline(p.name);
         });
@@ -1059,6 +1049,17 @@ function buildAiHints(scored, ctx) {
     reason: needText(s.player)
   }));
   return picks;
+}
+
+// Выбор из топ-3 с вероятностью альтернативы
+function pickWithAiPreference(topList) {
+  if (!topList || !topList.length) return null;
+  const altChance = Math.min(Math.max(aiBehavior?.altPickChance || 0, 0), 1);
+  if (topList.length > 1 && Math.random() < altChance) {
+    const altIndex = Math.min(topList.length - 1, 2);
+    return topList[Math.floor(Math.random() * (altIndex + 1))];
+  }
+  return topList[0];
 }
 
 function countRolesByNames(names) {
