@@ -73,7 +73,7 @@
               </div>
               
               <div class="form-row">
-                <label>Капитаны команд (добавляются автоматически как 5‑й игрок)</label>
+                <label>Капитаны команд</label>
                 <div class="dual-select-row">
                   <select id="offline-captain1">
                     <option value="">— не выбран —</option>
@@ -81,9 +81,6 @@
                   <select id="offline-captain2">
                     <option value="">— не выбран —</option>
                   </select>
-                </div>
-                <div class="hint small">
-                  Эти два игрока считаются капитанами и сразу входят в состав Команды 1 и Команды 2. Драфт выбирает только остальных четырёх.
                 </div>
               </div>
 <div class="form-row" id="offline-human-side-row">
@@ -289,6 +286,8 @@
               <div class="form-row">
                 <label>Активные комнаты (последние 2 недели)</label>
                 <div class="btn-row">
+                  <input type="password" id="online-admin-pass" placeholder="Админ-пароль для удаления" />
+                  <button id="online-admin-verify">Подтвердить</button>
                   <button id="online-refresh-rooms">Обновить список</button>
                 </div>
               </div>
@@ -317,7 +316,7 @@
                   <select id="online-map-select"></select>
                 </div>
                 <div class="form-row">
-                  <label>Капитаны команд (добавляются автоматически как 5-й игрок)</label>
+                  <label>Капитаны команд</label>
                   <div class="dual-select-row">
                     <select id="online-captain1">
                       <option value="">— не выбран —</option>
@@ -326,7 +325,6 @@
                       <option value="">— не выбран —</option>
                     </select>
                   </div>
-                  <div class="hint small">Капитан 1 и Капитан 2 сразу входят в состав своих команд и исключаются из пула.</div>
                 </div>
                 <div class="form-row">
                   <label>Режим</label>
@@ -337,19 +335,33 @@
                   </select>
                 </div>
                 <div class="form-row">
-                  <label>Стратегия ИИ</label>
-                  <select id="online-ai-strategy">
-                    <option value="balanced">Сбалансированная</option>
-                    <option value="infantry_focus">Фокус на пехоте</option>
-                    <option value="motorized_focus">Фокус на мотопехоте</option>
-                    <option value="tanks_focus">Фокус на танках</option>
-                    <option value="artillery_focus">Фокус на арте</option>
-                    <option value="infantry_mech_mix">Пехота + механика</option>
-                    <option value="heavy_at_focus">Тяжёлые танки и ПТО</option>
-                    <option value="aa_defense">ПВО и оборона</option>
-                    <option value="max_dpm">Максимум DPM</option>
-                    <option value="counter_enemy">Контрпик по ролям</option>
-                  </select>
+                  <label>Стратегии ИИ (Команда 1 / Команда 2)</label>
+                  <div class="dual-select-row">
+                    <select id="online-ai-strategy-1">
+                      <option value="balanced">Сбалансированная</option>
+                      <option value="infantry_focus">Фокус на пехоте</option>
+                      <option value="motorized_focus">Фокус на мотопехоте</option>
+                      <option value="tanks_focus">Фокус на танках</option>
+                      <option value="artillery_focus">Фокус на арте</option>
+                      <option value="infantry_mech_mix">Пехота + механика</option>
+                      <option value="heavy_at_focus">Тяжёлые танки и ПТО</option>
+                      <option value="aa_defense">ПВО и оборона</option>
+                      <option value="max_dpm">Максимум DPM</option>
+                      <option value="counter_enemy">Контрпик по ролям</option>
+                    </select>
+                    <select id="online-ai-strategy-2">
+                      <option value="balanced">Сбалансированная</option>
+                      <option value="infantry_focus">Фокус на пехоте</option>
+                      <option value="motorized_focus">Фокус на мотопехоте</option>
+                      <option value="tanks_focus">Фокус на танках</option>
+                      <option value="artillery_focus">Фокус на арте</option>
+                      <option value="infantry_mech_mix">Пехота + механика</option>
+                      <option value="heavy_at_focus">Тяжёлые танки и ПТО</option>
+                      <option value="aa_defense">ПВО и оборона</option>
+                      <option value="max_dpm">Максимум DPM</option>
+                      <option value="counter_enemy">Контрпик по ролям</option>
+                    </select>
+                  </div>
                 </div>
                 <div class="form-row">
                   <label>Пул игроков для матча</label>

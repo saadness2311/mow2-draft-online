@@ -174,7 +174,13 @@ let activeStrategySource = "global"; // global | local
 // Глобальные массивы игроков
 let playersLocal = [];
 let playersGlobal = [];
-let activeDataset = "local";
+let activeDataset = (function() {
+  try {
+    return localStorage.getItem("mow2_dataset_source") || "global";
+  } catch (e) {
+    return "global";
+  }
+})();
 let players = []; // текущий рабочий массив
 
 // Оффлайн драфт состояние
@@ -279,6 +285,7 @@ function loadPlayersLocal() {
       populateOfflineCaptains();
       populateOnlineCaptains();
       renderOfflinePool();
+      renderOnlinePool();
       return;
     }
   } catch (e) {
@@ -292,6 +299,7 @@ function loadPlayersLocal() {
       populateOfflineCaptains();
       populateOnlineCaptains();
       renderOfflinePool();
+      renderOnlinePool();
     })
     .catch(err => {
       console.error("Failed to load players.json", err);
@@ -300,6 +308,7 @@ function loadPlayersLocal() {
       populateOfflineCaptains();
       populateOnlineCaptains();
       renderOfflinePool();
+      renderOnlinePool();
     });
 }
 
@@ -542,6 +551,8 @@ function populateOfflineCaptains() {
       offlineDraft.captain2 = null;
       sel2.value = "";
     }
+    offlineDraft.pool = (offlineDraft.pool || []).filter(n => n !== offlineDraft.captain1 && n !== offlineDraft.captain2);
+    renderOfflinePool();
   };
   sel2.onchange = () => {
     offlineDraft.captain2 = sel2.value || null;
@@ -549,6 +560,8 @@ function populateOfflineCaptains() {
       offlineDraft.captain1 = null;
       sel1.value = "";
     }
+    offlineDraft.pool = (offlineDraft.pool || []).filter(n => n !== offlineDraft.captain1 && n !== offlineDraft.captain2);
+    renderOfflinePool();
   };
 }
 
@@ -557,7 +570,8 @@ function ensureOnlineDraftState() {
     onlineState.draft = {
       map: MAPS[0],
       mode: "human_vs_human",
-      aiStrategy: "balanced",
+      aiStrategy1: "balanced",
+      aiStrategy2: "balanced",
       captain1: null,
       captain2: null,
       pool: [],
@@ -606,6 +620,7 @@ function populateOnlineCaptains() {
       draft.captain2 = null;
       sel2.value = "";
     }
+    draft.pool = (draft.pool || []).filter(n => n !== draft.captain1 && n !== draft.captain2);
     renderOnlinePool();
   };
   sel2.onchange = () => {
@@ -614,13 +629,14 @@ function populateOnlineCaptains() {
       draft.captain1 = null;
       sel1.value = "";
     }
+    draft.pool = (draft.pool || []).filter(n => n !== draft.captain1 && n !== draft.captain2);
     renderOnlinePool();
   };
 }
 
 function syncOnlineControlsAccess() {
   const isCreator = onlineState.isCreator;
-  ["online-map-select","online-mode-select","online-ai-strategy","online-pool-all","online-pool-top20","online-pool-clear","online-start-draft"].forEach(id => {
+  ["online-map-select","online-mode-select","online-ai-strategy-1","online-ai-strategy-2","online-pool-all","online-pool-top20","online-pool-clear","online-start-draft"].forEach(id => {
     const el = $(id);
     if (el) el.disabled = !isCreator;
   });
@@ -642,11 +658,12 @@ function renderOfflinePool() {
   box.innerHTML = "";
   const poolSet = new Set(offlineDraft.pool);
   players.forEach(p => {
+    const isCaptain = p.name === offlineDraft.captain1 || p.name === offlineDraft.captain2;
     const row = document.createElement("div");
-    row.className = "player-row" + (poolSet.has(p.name) ? " selected" : "");
+    row.className = "player-row" + (poolSet.has(p.name) ? " selected" : "") + (isCaptain ? " disabled" : "");
     row.addEventListener("click", () => {
       // капитаны не могут быть в пуле
-      if (p.name === offlineDraft.captain1 || p.name === offlineDraft.captain2) return;
+      if (isCaptain) return;
       if (poolSet.has(p.name)) {
         offlineDraft.pool = offlineDraft.pool.filter(n => n !== p.name);
       } else {
@@ -686,6 +703,7 @@ function startOfflineDraft() {
     return;
   }
 
+  offlineDraft.pool = offlineDraft.pool.filter(n => n !== offlineDraft.captain1 && n !== offlineDraft.captain2);
   offlineDraft.available = offlineDraft.pool.slice();
   offlineDraft.team1 = [offlineDraft.captain1];
   offlineDraft.team2 = [offlineDraft.captain2];
@@ -698,6 +716,12 @@ function startOfflineDraft() {
 function getOfflineStrategyForSide(side) {
   if (side === "team1") return offlineDraft.strategy1 || "balanced";
   return offlineDraft.strategy2 || "balanced";
+}
+
+function getOnlineStrategyForSide(side) {
+  const d = ensureOnlineDraftState();
+  if (side === "team1") return d.aiStrategy1 || "balanced";
+  return d.aiStrategy2 || "balanced";
 }
 
 function renderOfflineDraft() {
@@ -745,6 +769,9 @@ function renderOfflineDraft() {
   if (!step) {
     offlineDraft.finished = true;
     suggestionsHtml = "<div class='hint'>Драфт завершён. Используй экспорт снизу, чтобы скопировать состав.</div>";
+    availEl.innerHTML = "<div class='hint'>Все пики распределены.</div>";
+    suggEl.innerHTML = suggestionsHtml;
+    return;
   } else {
     const side = step.team;
     const isHumanTurn = offlineDraft.mode === "manual"
@@ -818,6 +845,7 @@ function humanPickOffline(name) {
   if (!isHumanTurn) return;
 
   if (!offlineDraft.available.includes(name)) return;
+  if (name === offlineDraft.captain1 || name === offlineDraft.captain2) return;
   if (side === "team1") {
     offlineDraft.team1.push(name);
   } else {
@@ -840,7 +868,7 @@ function aiPickOfflineCurrentSide(context, scoredList) {
     || (offlineDraft.mode === "human_vs_ai" && offlineDraft.humanSide === side);
   if (isHumanTurn) return;
 
-  const valid = scoredList.filter(s => offlineDraft.available.includes(s.player.name));
+  const valid = scoredList.filter(s => offlineDraft.available.includes(s.player.name) && s.player.name !== offlineDraft.captain1 && s.player.name !== offlineDraft.captain2);
   if (!valid.length) return;
   const top = valid.slice(0, Math.min(3, valid.length));
   const choice = top[Math.floor(Math.random()*top.length)];
@@ -975,6 +1003,11 @@ function initPlayersScreen() {
   const importInput = $("players-import-local");
 
   srcSel.value = activeDataset;
+  if (activeDataset === "global" && !playersGlobal.length) {
+    activeDataset = "local";
+    srcSel.value = "local";
+    players = playersLocal;
+  }
   srcSel.addEventListener("change", () => {
     const val = srcSel.value;
     if (val === "global") {
@@ -991,6 +1024,7 @@ function initPlayersScreen() {
       activeDataset = "local";
       players = playersLocal;
     }
+    try { localStorage.setItem("mow2_dataset_source", activeDataset); } catch (e) {}
     populateOfflineCaptains();
     populateOnlineCaptains();
     renderPlayersList();
@@ -1203,6 +1237,17 @@ function initOnlineScreen() {
   $("online-join-room").addEventListener("click", joinOnlineRoom);
   $("online-refresh-rooms").addEventListener("click", refreshOnlineRooms);
   $("online-delete-room").addEventListener("click", deleteOnlineRoom);
+  $("online-admin-verify").addEventListener("click", () => {
+    const pwd = ($("online-admin-pass").value || "").trim();
+    if (pwd === onlineState.adminPassword) {
+      onlineState.isAdmin = true;
+      $("online-admin-verify").textContent = "Админ OK";
+      refreshOnlineRooms();
+    } else {
+      onlineState.isAdmin = false;
+      alert("Неверный админ-пароль для удаления комнат.");
+    }
+  });
 
   const mapSel = $("online-map-select");
   MAPS.forEach(m => {
@@ -1216,6 +1261,17 @@ function initOnlineScreen() {
   mapSel.value = draft.map;
   mapSel.addEventListener("change", () => {
     draft.map = mapSel.value;
+  });
+
+  const strat1Sel = $("online-ai-strategy-1");
+  const strat2Sel = $("online-ai-strategy-2");
+  strat1Sel.value = draft.aiStrategy1;
+  strat2Sel.value = draft.aiStrategy2;
+  strat1Sel.addEventListener("change", () => {
+    draft.aiStrategy1 = strat1Sel.value;
+  });
+  strat2Sel.addEventListener("change", () => {
+    draft.aiStrategy2 = strat2Sel.value;
   });
 
   $("online-start-draft").addEventListener("click", startOnlineDraft);
@@ -1316,7 +1372,8 @@ async function createOnlineRoom() {
   onlineState.draft = {
     map: draft.map || MAPS[0],
     mode: draft.mode || "human_vs_human",
-    aiStrategy: draft.aiStrategy || "balanced",
+    aiStrategy1: draft.aiStrategy1 || "balanced",
+    aiStrategy2: draft.aiStrategy2 || "balanced",
     captain1: cap1,
     captain2: cap2,
     pool: players
@@ -1380,7 +1437,8 @@ async function joinOnlineRoom() {
   onlineState.draft = {
     map: MAPS[0],
     mode: "human_vs_human",
-    aiStrategy: "balanced",
+    aiStrategy1: "balanced",
+    aiStrategy2: "balanced",
     captain1: null,
     captain2: null,
     pool: [],
@@ -1447,8 +1505,34 @@ async function refreshOnlineRooms() {
     row.addEventListener("click", () => {
       $("online-join-code").value = r.code;
     });
+    if (onlineState.isAdmin) {
+      const delBtn = document.createElement("button");
+      delBtn.textContent = "Удалить";
+      delBtn.className = "danger";
+      delBtn.style.marginLeft = "8px";
+      delBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        adminDeleteRoom(r.id, r.code);
+      });
+      row.appendChild(delBtn);
+    }
     listEl.appendChild(row);
   });
+}
+
+async function adminDeleteRoom(roomId, code) {
+  if (!onlineState.isAdmin) {
+    alert("Нужно подтвердить админ-пароль, чтобы удалять комнаты.");
+    return;
+  }
+  if (!confirm(`Удалить комнату ${code}?`)) return;
+  const supabase = initSupabase();
+  const { error } = await supabase.from("rooms").delete().eq("id", roomId);
+  if (error) {
+    alert("Не удалось удалить комнату.");
+    return;
+  }
+  refreshOnlineRooms();
 }
 
 async function deleteOnlineRoom() {
@@ -1519,6 +1603,9 @@ async function renderOnlineParticipants() {
     creatorPanel.classList.add("hidden");
     return;
   }
+  if (!parts.length) {
+    listEl.innerHTML = "<div class='hint'>Пока никто не присоединился.</div>";
+  }
   parts.forEach(p => {
     const row = document.createElement("div");
     row.className = "participant-row";
@@ -1552,7 +1639,8 @@ function startOnlineDraft() {
   const d = ensureOnlineDraftState();
   d.map = $("online-map-select").value;
   d.mode = $("online-mode-select").value;
-  d.aiStrategy = $("online-ai-strategy").value;
+  d.aiStrategy1 = $("online-ai-strategy-1").value;
+  d.aiStrategy2 = $("online-ai-strategy-2").value;
   const cap1 = d.captain1;
   const cap2 = d.captain2;
   if (!cap1 || !cap2) {
@@ -1567,7 +1655,8 @@ function startOnlineDraft() {
     errBox.textContent = "Нужно минимум 10 игроков в пуле для матча.";
     return;
   }
-  d.available = d.pool.filter(n => n !== cap1 && n !== cap2);
+  d.pool = (d.pool || []).filter(n => n !== cap1 && n !== cap2);
+  d.available = d.pool.slice();
   d.team1 = [cap1];
   d.team2 = [cap2];
   d.currentPickIndex = 0;
@@ -1615,7 +1704,9 @@ function renderOnlineDraft() {
   const step = DRAFT_ORDER[d.currentPickIndex];
   if (!step) {
     d.finished = true;
+    $("online-match-status").textContent = "Завершён";
     suggEl.innerHTML = "<div class='hint'>Драфт завершён.</div>";
+    availEl.innerHTML = "<div class='hint'>Все пики распределены.</div>";
     return;
   }
 
@@ -1636,7 +1727,7 @@ function renderOnlineDraft() {
     side,
     enemySide: side === "team1" ? "team2" : "team1",
     mode: d.mode,
-    strategy: d.aiStrategy
+    strategy: getOnlineStrategyForSide(side)
   };
   const scored = availablePlayers.map(p => ({
     player: p,
@@ -1649,7 +1740,7 @@ function renderOnlineDraft() {
     hints.forEach((h,i) => {
       suggestionsHtml += `${i===0?"• Лучший пик:":"• Альтернатива:"} ${h.name} [${h.tier}] — MMR: ${h.mmr}, DPM: ${h.dpm} (${h.reason})<br/>`;
     });
-    suggestionsHtml += `</div><div class="hint small">Стратегия ИИ: <strong>${d.aiStrategy}</strong>. Учитываем роли союзников и угрозы противника.</div>`;
+    suggestionsHtml += `</div><div class="hint small">Стратегия ИИ: <strong>${getOnlineStrategyForSide(side)}</strong>. Учитываем роли союзников и угрозы противника.</div>`;
   }
   suggEl.innerHTML = suggestionsHtml;
 
@@ -1691,11 +1782,15 @@ function humanPickOnline(name) {
   )) || (d.mode === "human_vs_ai" && onlineState.myRole === "captain1" && side === "team1");
   if (!isMyTurn) return;
   if (!d.available.includes(name)) return;
+  if (name === d.captain1 || name === d.captain2) return;
   if (side === "team1") d.team1.push(name);
   else d.team2.push(name);
   d.available = d.available.filter(n=>n!==name);
   d.currentPickIndex++;
-  if (d.currentPickIndex >= DRAFT_ORDER.length) d.finished = true;
+  if (d.currentPickIndex >= DRAFT_ORDER.length) {
+    d.finished = true;
+    $("online-match-status").textContent = "Завершён";
+  }
   renderOnlineDraft();
 }
 
@@ -1711,7 +1806,7 @@ function aiPickOnlineCurrentSide(ctx, scoredList) {
   )) || (d.mode === "human_vs_ai" && onlineState.myRole === "captain1" && side === "team1");
   if (isMyTurn) return;
 
-  const valid = scoredList.filter(s => d.available.includes(s.player.name));
+  const valid = scoredList.filter(s => d.available.includes(s.player.name) && s.player.name !== d.captain1 && s.player.name !== d.captain2);
   if (!valid.length) return;
   const top = valid.slice(0, Math.min(3, valid.length));
   const choice = top[Math.floor(Math.random()*top.length)];
@@ -1720,7 +1815,10 @@ function aiPickOnlineCurrentSide(ctx, scoredList) {
   else d.team2.push(name);
   d.available = d.available.filter(n=>n!==name);
   d.currentPickIndex++;
-  if (d.currentPickIndex >= DRAFT_ORDER.length) d.finished = true;
+  if (d.currentPickIndex >= DRAFT_ORDER.length) {
+    d.finished = true;
+    $("online-match-status").textContent = "Завершён";
+  }
   renderOnlineDraft();
 }
 
