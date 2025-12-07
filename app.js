@@ -1517,17 +1517,25 @@ async function refreshOnlineRooms() {
     row.addEventListener("click", () => {
       $("online-join-code").value = r.code;
     });
-    if (onlineState.isAdmin) {
-      const delBtn = document.createElement("button");
-      delBtn.textContent = "Удалить";
-      delBtn.className = "danger";
-      delBtn.style.marginLeft = "8px";
-      delBtn.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        adminDeleteRoom(r.id, r.code);
-      });
-      row.appendChild(delBtn);
-    }
+
+    const delBtn = document.createElement("button");
+    delBtn.textContent = "Удалить";
+    delBtn.className = "danger";
+    delBtn.style.marginLeft = "8px";
+    delBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      if (!onlineState.isAdmin) {
+        const pwd = prompt("Введите админ-пароль для удаления комнаты");
+        if ((pwd || "").trim() !== onlineState.adminPassword) {
+          alert("Неверный админ-пароль.");
+          return;
+        }
+        onlineState.isAdmin = true;
+      }
+      adminDeleteRoom(r.id, r.code);
+    });
+    row.appendChild(delBtn);
+
     listEl.appendChild(row);
   });
 }
