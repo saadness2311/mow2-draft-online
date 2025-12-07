@@ -662,6 +662,8 @@ function updateOfflineModeUI() {
 function renderOfflinePool() {
   const box = $("offline-pool-list");
   box.innerHTML = "";
+  // гарантируем, что капитаны не попадают в пул даже если пользователь нажал кнопку раньше
+  offlineDraft.pool = (offlineDraft.pool || []).filter(n => n !== offlineDraft.captain1 && n !== offlineDraft.captain2);
   const poolSet = new Set(offlineDraft.pool);
   players.forEach(p => {
     const isCaptain = p.name === offlineDraft.captain1 || p.name === offlineDraft.captain2;
@@ -766,6 +768,7 @@ function renderOfflineDraft() {
 
   availEl.innerHTML = "";
   const availablePlayers = offlineDraft.available
+    .filter(n => n !== offlineDraft.captain1 && n !== offlineDraft.captain2)
     .map(name => players.find(p => p.name === name))
     .filter(Boolean)
     .sort((a,b) => (b.mmr||0)-(a.mmr||0));
@@ -1568,6 +1571,8 @@ function renderOnlinePool() {
   const box = $("online-pool-list");
   const draft = ensureOnlineDraftState();
   box.innerHTML = "";
+  // удаляем капитанов из пула на всякий случай, чтобы их нельзя было взять дважды
+  draft.pool = (draft.pool || []).filter(n => n !== draft.captain1 && n !== draft.captain2);
   const poolSet = new Set(draft.pool || []);
   const cap1 = draft.captain1;
   const cap2 = draft.captain2;
@@ -1726,6 +1731,7 @@ function renderOnlineDraft() {
   )) || (d.mode === "human_vs_ai" && onlineState.myRole === "captain1" && side === "team1");
 
   const availablePlayers = d.available
+    .filter(n => n !== d.captain1 && n !== d.captain2)
     .map(name => players.find(p=>p.name===name))
     .filter(Boolean)
     .sort((a,b)=> (b.mmr||0)-(a.mmr||0));
