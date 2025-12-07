@@ -82,6 +82,7 @@
                     <option value="">— не выбран —</option>
                   </select>
                 </div>
+                <div class="hint small">Капитаны задаются до драфта и сразу входят в состав своих команд.</div>
               </div>
 <div class="form-row" id="offline-human-side-row">
                 <label>За какого капитана играешь ты?</label>
@@ -152,6 +153,7 @@
               <h4 style="margin-top:8px;">Доступные игроки</h4>
               <div id="offline-available" class="scroll-panel tall"></div>
               <div id="offline-suggestions" class="hint-block"></div>
+              <div id="offline-finish" class="hint-block hidden"></div>
             </div>
             <div class="team-column">
               <h4>Команда 2</h4>
@@ -248,6 +250,14 @@
                 </label>
                 <button id="strategies-export-file">Экспорт JSON</button>
               </div>
+              <div class="form-row compact">
+                <label>Вероятность альтернативного пика ИИ (0..1)</label>
+                <input type="number" step="0.05" min="0" max="1" id="strategies-alt-chance" />
+              </div>
+              <div class="form-row compact">
+                <label>Коэффициент влияния Tier</label>
+                <input type="number" step="0.1" min="0" max="3" id="strategies-tier-bias" />
+              </div>
               <div class="hint small">Локальное сохранение кладёт данные в браузер и сразу включает источник «Локальные». Для глобального сохранения используй админ-панель.</div>
             </div>
           </div>
@@ -315,17 +325,18 @@
                   <label>Карта</label>
                   <select id="online-map-select"></select>
                 </div>
-                <div class="form-row">
-                  <label>Капитаны команд</label>
-                  <div class="dual-select-row">
-                    <select id="online-captain1">
-                      <option value="">— не выбран —</option>
+              <div class="form-row">
+                <label>Капитаны команд</label>
+                <div class="dual-select-row">
+                  <select id="online-captain1">
+                    <option value="">— не выбран —</option>
                     </select>
-                    <select id="online-captain2">
-                      <option value="">— не выбран —</option>
-                    </select>
-                  </div>
+                  <select id="online-captain2">
+                    <option value="">— не выбран —</option>
+                  </select>
                 </div>
+                <div class="hint small">Капитаны выбраны заранее и уже занимают первый слот в своих командах.</div>
+              </div>
                 <div class="form-row">
                   <label>Режим</label>
                   <select id="online-mode-select">
@@ -399,6 +410,7 @@
                 <h4 style="margin-top:8px;">Доступные игроки</h4>
                 <div id="online-available" class="scroll-panel tall"></div>
                 <div id="online-suggestions" class="hint-block"></div>
+                <div id="online-finish" class="hint-block hidden"></div>
               </div>
               <div class="team-column">
                 <h4>Команда 2</h4>
@@ -442,6 +454,14 @@
                   <button id="admin-strategies-save">Сохранить стратегии локально</button>
                 </div>
                 <textarea id="admin-strategies-json" class="export-area" rows="6"></textarea>
+                <div class="form-row compact">
+                  <label>Вероятность альтернативного пика ИИ (0..1)</label>
+                  <input type="number" step="0.05" min="0" max="1" id="admin-alt-chance" />
+                </div>
+                <div class="form-row compact">
+                  <label>Коэффициент влияния Tier</label>
+                  <input type="number" step="0.1" min="0" max="3" id="admin-tier-bias" />
+                </div>
               </div>
               <div class="form-row">
                 <label>Смена админ-пароля (глобально через Supabase)</label>

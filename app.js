@@ -32,6 +32,20 @@ const TIER_MULTIPLIERS = {
   "F": 0.7
 };
 
+const ROLE_IDS = [
+  "infantry",
+  "motorized_infantry",
+  "assault_infantry",
+  "mechanical",
+  "tanks",
+  "heavy_tanks",
+  "artillery",
+  "at_artillery",
+  "aa_artillery",
+  "spg",
+  "sapper"
+];
+
 // Базовые веса ролей по стратегиям (текущий активный набор)
 let ROLE_WEIGHTS = {
   balanced: {
@@ -166,10 +180,17 @@ let ROLE_WEIGHTS = {
   }
 };
 
+let aiBehavior = {
+  altPickChance: 0.35,
+  tierBias: 1.0
+};
+
 // Локальные/глобальные наборы стратегий и выбор источника
 let roleWeightsLocal = null;
 let roleWeightsGlobal = null;
 let activeStrategySource = "global"; // global | local
+let aiBehaviorLocal = null;
+let aiBehaviorGlobal = null;
 
 // Глобальные массивы игроков
 let playersLocal = [];
@@ -325,7 +346,17 @@ function loadStrategiesLocal() {
   try {
     const cached = localStorage.getItem("mow2_ai_strategies_v11");
     if (cached) {
-      roleWeightsLocal = JSON.parse(cached);
+      const parsed = JSON.parse(cached);
+      if (parsed && parsed.weights) {
+        roleWeightsLocal = parsed.weights;
+        aiBehaviorLocal = parsed.meta || aiBehaviorLocal;
+      } else {
+        roleWeightsLocal = parsed;
+      }
+    }
+    const metaCached = localStorage.getItem("mow2_ai_meta_v11");
+    if (metaCached) {
+      aiBehaviorLocal = { ...aiBehavior, ...JSON.parse(metaCached) };
     }
   } catch (e) {
     console.warn("Failed to load local strategies", e);
@@ -333,11 +364,15 @@ function loadStrategiesLocal() {
   if (!roleWeightsLocal) {
     roleWeightsLocal = JSON.parse(JSON.stringify(ROLE_WEIGHTS));
   }
+  if (!aiBehaviorLocal) {
+    aiBehaviorLocal = { ...aiBehavior };
+  }
 }
 
 function saveStrategiesLocal() {
   try {
-    localStorage.setItem("mow2_ai_strategies_v11", JSON.stringify(roleWeightsLocal));
+    localStorage.setItem("mow2_ai_strategies_v11", JSON.stringify({ weights: roleWeightsLocal, meta: aiBehaviorLocal }));
+    localStorage.setItem("mow2_ai_meta_v11", JSON.stringify(aiBehaviorLocal));
   } catch (e) {
     console.warn("Failed to save strategies", e);
   }
@@ -379,13 +414,22 @@ async function loadStrategiesGlobal() {
       .eq("key", "ai_strategies")
       .maybeSingle();
     if (!error && data && data.value) {
-      roleWeightsGlobal = JSON.parse(data.value);
+      const parsed = JSON.parse(data.value);
+      if (parsed && parsed.weights) {
+        roleWeightsGlobal = parsed.weights;
+        aiBehaviorGlobal = parsed.meta || aiBehaviorGlobal;
+      } else {
+        roleWeightsGlobal = parsed;
+      }
     }
   } catch (e) {
     console.warn("Failed to load global strategies", e);
   }
   if (!roleWeightsGlobal) {
     roleWeightsGlobal = JSON.parse(JSON.stringify(ROLE_WEIGHTS));
+  }
+  if (!aiBehaviorGlobal) {
+    aiBehaviorGlobal = { ...aiBehavior };
   }
   applyStrategySource();
 }
@@ -397,8 +441,10 @@ function applyStrategySource() {
   }
   if (activeStrategySource === "local" && roleWeightsLocal) {
     ROLE_WEIGHTS = roleWeightsLocal;
+    aiBehavior = aiBehaviorLocal || aiBehavior;
   } else if (roleWeightsGlobal) {
     ROLE_WEIGHTS = roleWeightsGlobal;
+    aiBehavior = aiBehaviorGlobal || aiBehavior;
   }
 }
 
@@ -409,6 +455,10 @@ function showScreen(id) {
   const el = document.getElementById("screen-" + id);
   if (el) el.classList.add("active");
   if (id === "players") renderPlayersList();
+  if (id === "online") {
+    renderOnlinePool();
+    renderOnlineParticipants();
+  }
 }
 
 function initMenu() {
@@ -551,7 +601,7 @@ function populateOfflineCaptains() {
       offlineDraft.captain2 = null;
       sel2.value = "";
     }
-    offlineDraft.pool = (offlineDraft.pool || []).filter(n => n !== offlineDraft.captain1 && n !== offlineDraft.captain2);
+    stripCaptainsFromDraft(offlineDraft);
     renderOfflinePool();
   };
   sel2.onchange = () => {
@@ -560,7 +610,7 @@ function populateOfflineCaptains() {
       offlineDraft.captain1 = null;
       sel1.value = "";
     }
-    offlineDraft.pool = (offlineDraft.pool || []).filter(n => n !== offlineDraft.captain1 && n !== offlineDraft.captain2);
+    stripCaptainsFromDraft(offlineDraft);
     renderOfflinePool();
   };
 }
@@ -583,6 +633,17 @@ function ensureOnlineDraftState() {
     };
   }
   return onlineState.draft;
+}
+
+function stripCaptainsFromDraft(draftObj) {
+  if (!draftObj) return;
+  const { captain1, captain2 } = draftObj;
+  draftObj.pool = (draftObj.pool || []).filter(n => n !== captain1 && n !== captain2);
+  draftObj.available = (draftObj.available || []).filter(n => n !== captain1 && n !== captain2);
+  draftObj.team1 = (draftObj.team1 || []).filter(n => n !== captain2);
+  draftObj.team2 = (draftObj.team2 || []).filter(n => n !== captain1);
+  if (captain1 && !draftObj.team1.includes(captain1)) draftObj.team1.unshift(captain1);
+  if (captain2 && !draftObj.team2.includes(captain2)) draftObj.team2.unshift(captain2);
 }
 
 function populateOnlineCaptains() {
@@ -620,10 +681,7 @@ function populateOnlineCaptains() {
       draft.captain2 = null;
       sel2.value = "";
     }
-    draft.pool = (draft.pool || []).filter(n => n !== draft.captain1 && n !== draft.captain2);
-    draft.available = (draft.available || []).filter(n => n !== draft.captain1 && n !== draft.captain2);
-    draft.team1 = draft.team1.filter(n => n === draft.captain1 || n !== draft.captain2);
-    if (draft.team1.indexOf(draft.captain1) === -1 && draft.captain1) draft.team1.unshift(draft.captain1);
+    stripCaptainsFromDraft(draft);
     renderOnlinePool();
   };
   sel2.onchange = () => {
@@ -632,10 +690,7 @@ function populateOnlineCaptains() {
       draft.captain1 = null;
       sel1.value = "";
     }
-    draft.pool = (draft.pool || []).filter(n => n !== draft.captain1 && n !== draft.captain2);
-    draft.available = (draft.available || []).filter(n => n !== draft.captain1 && n !== draft.captain2);
-    draft.team2 = draft.team2.filter(n => n === draft.captain2 || n !== draft.captain1);
-    if (draft.team2.indexOf(draft.captain2) === -1 && draft.captain2) draft.team2.unshift(draft.captain2);
+    stripCaptainsFromDraft(draft);
     renderOnlinePool();
   };
 }
@@ -711,7 +766,7 @@ function startOfflineDraft() {
     return;
   }
 
-  offlineDraft.pool = offlineDraft.pool.filter(n => n !== offlineDraft.captain1 && n !== offlineDraft.captain2);
+  stripCaptainsFromDraft(offlineDraft);
   offlineDraft.available = offlineDraft.pool.slice();
   offlineDraft.team1 = [offlineDraft.captain1];
   offlineDraft.team2 = [offlineDraft.captain2];
@@ -738,6 +793,7 @@ function renderOfflineDraft() {
   const availEl = $("offline-available");
   const picksEl = $("offline-pick-order");
   const suggEl = $("offline-suggestions");
+  const finishEl = $("offline-finish");
 
   team1El.innerHTML = "";
   offlineDraft.team1.forEach(name => {
@@ -780,9 +836,13 @@ function renderOfflineDraft() {
     suggestionsHtml = "<div class='hint strong'>Драфт завершён. Используй экспорт снизу, чтобы скопировать состав.</div>";
     availEl.innerHTML = "<div class='hint'>Все пики распределены.</div>";
     suggEl.innerHTML = suggestionsHtml;
-    $("online-match-status")?.textContent = "Завершён";
+    if (finishEl) {
+      finishEl.classList.remove("hidden");
+      finishEl.innerHTML = "<strong>Драфт завершён.</strong> Капитан + 4 игрока у каждой команды подобраны.";
+    }
     return;
   } else {
+    if (finishEl) finishEl.classList.add("hidden");
     const side = step.team;
     const isHumanTurn = offlineDraft.mode === "manual"
       || (offlineDraft.mode === "human_vs_ai" && offlineDraft.humanSide === side);
@@ -814,6 +874,16 @@ function renderOfflineDraft() {
   if (!isHumanTurn && (offlineDraft.mode === "human_vs_ai" || offlineDraft.mode === "ai_vs_ai")) {
     aiPickOfflineCurrentSide(context, scored);
   }
+}
+
+function pickWithAiPreference(topList) {
+  if (!topList || !topList.length) return null;
+  const altChance = Math.min(Math.max(aiBehavior?.altPickChance || 0, 0), 1);
+  if (topList.length > 1 && Math.random() < altChance) {
+    const altIndex = Math.min(topList.length - 1, 2);
+    return topList[Math.floor(Math.random() * (altIndex + 1))];
+  }
+  return topList[0];
 }
   }
   suggEl.innerHTML = suggestionsHtml;
@@ -881,7 +951,7 @@ function aiPickOfflineCurrentSide(context, scoredList) {
   const valid = scoredList.filter(s => offlineDraft.available.includes(s.player.name) && s.player.name !== offlineDraft.captain1 && s.player.name !== offlineDraft.captain2);
   if (!valid.length) return;
   const top = valid.slice(0, Math.min(3, valid.length));
-  const choice = top[Math.floor(Math.random()*top.length)];
+  const choice = pickWithAiPreference(top);
   const name = choice.player.name;
   if (side === "team1") offlineDraft.team1.push(name);
   else offlineDraft.team2.push(name);
@@ -909,7 +979,7 @@ function exportOfflineResult() {
 function calcPlayerValue(p, ctx) {
   const mmrScore = (p.mmr || 0) / 100;
   const dpmScore = (p.dpm || 0) / 5000;
-  const tierMult = tierMultiplier(p.tier || "D");
+  const tierMult = tierMultiplier(p.tier || "D") * (aiBehavior?.tierBias || 1);
   const roles = p.roles || [];
 
   const enemySide = ctx.enemySide;
@@ -1048,6 +1118,10 @@ function initPlayersScreen() {
       activeStrategySource = strategySourceSel.value;
       localStorage.setItem("mow2_strategy_source", activeStrategySource);
       applyStrategySource();
+      const altChanceInput = $("strategies-alt-chance");
+      const tierBiasInput = $("strategies-tier-bias");
+      if (altChanceInput) altChanceInput.value = aiBehavior.altPickChance;
+      if (tierBiasInput) tierBiasInput.value = aiBehavior.tierBias;
     });
   }
 
@@ -1090,14 +1164,27 @@ function initPlayersScreen() {
   const stratSaveLocal = $("strategies-save-local");
   const stratImport = $("strategies-import-file");
   const stratExport = $("strategies-export-file");
+  const altChanceInput = $("strategies-alt-chance");
+  const tierBiasInput = $("strategies-tier-bias");
   if (stratEditor && stratLoadBtn && stratSaveLocal && stratImport && stratExport) {
+    if (altChanceInput) altChanceInput.value = aiBehavior.altPickChance;
+    if (tierBiasInput) tierBiasInput.value = aiBehavior.tierBias;
     stratLoadBtn.addEventListener("click", () => {
-      stratEditor.value = JSON.stringify(ROLE_WEIGHTS, null, 2);
+      stratEditor.value = JSON.stringify({ weights: ROLE_WEIGHTS, meta: aiBehavior }, null, 2);
+      if (altChanceInput) altChanceInput.value = aiBehavior.altPickChance;
+      if (tierBiasInput) tierBiasInput.value = aiBehavior.tierBias;
     });
     stratSaveLocal.addEventListener("click", () => {
       try {
         const parsed = JSON.parse(stratEditor.value || "{}");
-        roleWeightsLocal = parsed;
+        roleWeightsLocal = parsed.weights || parsed;
+        aiBehaviorLocal = parsed.meta ? { ...aiBehavior, ...parsed.meta } : aiBehaviorLocal;
+        if (altChanceInput && altChanceInput.value !== "") {
+          aiBehaviorLocal.altPickChance = Math.max(0, Math.min(1, parseFloat(altChanceInput.value)));
+        }
+        if (tierBiasInput && tierBiasInput.value !== "") {
+          aiBehaviorLocal.tierBias = Math.max(0, parseFloat(tierBiasInput.value));
+        }
         saveStrategiesLocal();
         activeStrategySource = "local";
         localStorage.setItem("mow2_strategy_source", activeStrategySource);
@@ -1117,7 +1204,7 @@ function initPlayersScreen() {
       reader.readAsText(file);
     });
     stratExport.addEventListener("click", () => {
-      const dataStr = stratEditor.value || JSON.stringify(ROLE_WEIGHTS, null, 2);
+      const dataStr = stratEditor.value || JSON.stringify({ weights: ROLE_WEIGHTS, meta: aiBehavior }, null, 2);
       const blob = new Blob([dataStr], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -1209,16 +1296,26 @@ function renderPlayerEdit(p) {
       <input type="text" id="edit-dpm" value="${round(p.dpm)}" />
     </div>
     <div class="form-row">
-      <label>Роли (через запятую)</label>
-      <input type="text" id="edit-roles" value="${(p.roles||[]).join(", ")}" />
-      <div class="hint small">
-        Доступные роли: infantry, motorized_infantry, assault_infantry, sapper, tanks, heavy_tanks, 
-        mechanical, artillery, at_artillery, aa_artillery, spg.
-      </div>
+      <label>Роли</label>
+      <div id="edit-roles-box" class="role-grid"></div>
+      <div class="hint small">Выбери все роли, на которых игрок уверенно играет.</div>
     </div>
     <button id="edit-save">Сохранить изменения</button>
   `;
   $("edit-tier").value = p.tier || "D";
+
+  const roleBox = $("edit-roles-box");
+  ROLE_IDS.forEach(r => {
+    const label = document.createElement("label");
+    label.className = "role-check";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.value = r;
+    input.checked = (p.roles || []).includes(r);
+    label.appendChild(input);
+    label.appendChild(document.createTextNode(" " + r));
+    roleBox.appendChild(label);
+  });
 
   $("edit-save").addEventListener("click", () => {
     p.name = $("edit-name").value.trim() || p.name;
@@ -1227,8 +1324,11 @@ function renderPlayerEdit(p) {
     const dpmVal = parseFloat($("edit-dpm").value.replace(",", "."));
     if (!isNaN(mmrVal)) p.mmr = mmrVal;
     if (!isNaN(dpmVal)) p.dpm = dpmVal;
-    const rolesStr = $("edit-roles").value || "";
-    p.roles = rolesStr.split(",").map(s=>s.trim()).filter(Boolean);
+    const newRoles = [];
+    document.querySelectorAll("#edit-roles-box input[type=checkbox]").forEach(cb => {
+      if (cb.checked) newRoles.push(cb.value);
+    });
+    p.roles = newRoles;
 
     if (activeDataset === "local") {
       // обновляем playersLocal (по ссылке это те же объекты)
@@ -1612,16 +1712,21 @@ function renderOnlinePool() {
 async function renderOnlineParticipants() {
   const supabase = initSupabase();
   if (!onlineState.room) return;
-  const { data: parts, error } = await supabase
-    .from("room_participants")
-    .select("*")
-    .eq("room_id", onlineState.room.id)
-    .order("created_at", { ascending: true });
   const listEl = $("online-participants");
   const creatorPanel = $("online-creator-panel");
   listEl.innerHTML = "";
-  if (error || !parts) {
-    listEl.innerHTML = "<div class='hint'>Ошибка загрузки участников.</div>";
+  let parts = [];
+  try {
+    const { data, error } = await supabase
+      .from("room_participants")
+      .select("*")
+      .eq("room_id", onlineState.room.id)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    parts = data || [];
+  } catch (e) {
+    console.warn("Ошибка загрузки участников", e);
+    listEl.innerHTML = "<div class='hint'>Список участников недоступен. Попробуй обновить комнату.</div>";
     creatorPanel.classList.add("hidden");
     return;
   }
@@ -1631,8 +1736,9 @@ async function renderOnlineParticipants() {
   parts.forEach(p => {
     const row = document.createElement("div");
     row.className = "participant-row";
+    const isMe = onlineState.myParticipantId === p.id;
     row.innerHTML = `
-      <span>${p.nickname}</span>
+      <span>${p.nickname}${isMe ? " (ты)" : ""}</span>
       <span class="participant-role">${p.role}</span>
     `;
     listEl.appendChild(row);
@@ -1677,7 +1783,7 @@ function startOnlineDraft() {
     errBox.textContent = "Нужно минимум 10 игроков в пуле для матча.";
     return;
   }
-  d.pool = (d.pool || []).filter(n => n !== cap1 && n !== cap2);
+  stripCaptainsFromDraft(d);
   d.available = d.pool.slice();
   d.team1 = [cap1];
   d.team2 = [cap2];
@@ -1696,6 +1802,7 @@ function renderOnlineDraft() {
   const availEl = $("online-available");
   const picksEl = $("online-pick-order");
   const suggEl = $("online-suggestions");
+  const finishEl = $("online-finish");
 
   team1El.innerHTML = "";
   d.team1.forEach(name => {
@@ -1729,8 +1836,13 @@ function renderOnlineDraft() {
     $("online-match-status").textContent = "Завершён";
     suggEl.innerHTML = "<div class='hint'>Драфт завершён.</div>";
     availEl.innerHTML = "<div class='hint'>Все пики распределены.</div>";
+    if (finishEl) {
+      finishEl.classList.remove("hidden");
+      finishEl.innerHTML = "<strong>Драфт завершён.</strong> Каждая команда укомплектована (капитан + 4 игрока).";
+    }
     return;
   }
+  if (finishEl) finishEl.classList.add("hidden");
 
   const side = step.team;
   const isMyTurn = (d.mode === "human_vs_human" && (
@@ -1813,6 +1925,11 @@ function humanPickOnline(name) {
   if (d.currentPickIndex >= DRAFT_ORDER.length) {
     d.finished = true;
     $("online-match-status").textContent = "Завершён";
+    const finishEl = $("online-finish");
+    if (finishEl) {
+      finishEl.classList.remove("hidden");
+      finishEl.innerHTML = "<strong>Драфт завершён.</strong> Каждая команда укомплектована (капитан + 4 игрока).";
+    }
   }
   renderOnlineDraft();
 }
@@ -1832,7 +1949,7 @@ function aiPickOnlineCurrentSide(ctx, scoredList) {
   const valid = scoredList.filter(s => d.available.includes(s.player.name) && s.player.name !== d.captain1 && s.player.name !== d.captain2);
   if (!valid.length) return;
   const top = valid.slice(0, Math.min(3, valid.length));
-  const choice = top[Math.floor(Math.random()*top.length)];
+  const choice = pickWithAiPreference(top);
   const name = choice.player.name;
   if (side === "team1") d.team1.push(name);
   else d.team2.push(name);
@@ -1922,16 +2039,26 @@ async function adminSaveGlobal() {
 
 function adminStrategiesLoad() {
   const ta = $("admin-strategies-json");
-  ta.value = JSON.stringify(ROLE_WEIGHTS, null, 2);
+  ta.value = JSON.stringify({ weights: ROLE_WEIGHTS, meta: aiBehavior }, null, 2);
   $("admin-actions-status").textContent = "Текущий набор стратегий загружен в редактор.";
+  const alt = $("admin-alt-chance");
+  const tier = $("admin-tier-bias");
+  if (alt) alt.value = aiBehavior.altPickChance;
+  if (tier) tier.value = aiBehavior.tierBias;
 }
 
 async function adminStrategiesSave() {
   const ta = $("admin-strategies-json");
   try {
     const obj = JSON.parse(ta.value);
-    ROLE_WEIGHTS = obj;
-    roleWeightsLocal = obj;
+    ROLE_WEIGHTS = obj.weights || obj;
+    roleWeightsLocal = ROLE_WEIGHTS;
+    aiBehavior = obj.meta ? { ...aiBehavior, ...obj.meta } : aiBehavior;
+    aiBehaviorLocal = aiBehavior;
+    const alt = $("admin-alt-chance");
+    const tier = $("admin-tier-bias");
+    if (alt && alt.value !== "") aiBehavior.altPickChance = Math.max(0, Math.min(1, parseFloat(alt.value)));
+    if (tier && tier.value !== "") aiBehavior.tierBias = Math.max(0, parseFloat(tier.value));
     saveStrategiesLocal();
     applyStrategySource();
     const status = $("admin-actions-status");
@@ -1940,9 +2067,10 @@ async function adminStrategiesSave() {
       const supabase = initSupabase();
       const { error } = await supabase
         .from("admin_config")
-        .upsert({ key: "ai_strategies", value: JSON.stringify(obj) });
+        .upsert({ key: "ai_strategies", value: JSON.stringify({ weights: ROLE_WEIGHTS, meta: aiBehavior }) });
       if (error) throw error;
-      roleWeightsGlobal = obj;
+      roleWeightsGlobal = ROLE_WEIGHTS;
+      aiBehaviorGlobal = aiBehavior;
       status.textContent = "Стратегии сохранены локально и в Supabase.";
     } catch (e) {
       console.warn("Failed to save strategies globally", e);
