@@ -239,9 +239,16 @@ const onlineState = {
   myParticipantId: null,
   myRole: "viewer",
   isCreator: false,
+  participants: [],
   draft: null,
   adminPassword: "kozakuapro",
   isAdmin: false
+};
+
+const DRAFT_STATUS = {
+  idle: "idle",
+  draft: "draft",
+  finished: "finished"
 };
 
 const MASTER_PASSWORD = "kozakuaproloh";
@@ -485,6 +492,58 @@ function applyStrategySource() {
   }
 }
 
+// --- Draft state (Supabase)
+// Ожидаем таблицу draft_state с колонками: room_id (unique, fk rooms.id), status text, state jsonb ---
+
+async function loadDraftState(roomId) {
+  if (!roomId) return null;
+  const supabase = initSupabase();
+  try {
+    const { data, error } = await supabase
+      .from("draft_state")
+      .select("*")
+      .eq("room_id", roomId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    const state = data.state || {};
+    const restored = {
+      ...getEmptyOnlineDraft(),
+      ...state
+    };
+    if (!restored.available || !restored.available.length) {
+      const taken = new Set([...(restored.team1||[]), ...(restored.team2||[])]);
+      restored.available = (restored.pool || []).filter(n => !taken.has(n));
+    }
+    onlineState.draft = restored;
+    return restored;
+  } catch (e) {
+    console.warn("Не удалось загрузить состояние драфта", e);
+    return null;
+  }
+}
+
+async function saveDraftState(roomId, stateObj) {
+  if (!roomId) return;
+  const supabase = initSupabase();
+  const statusValue = stateObj.finished ? DRAFT_STATUS.finished : (stateObj.status || DRAFT_STATUS.draft);
+  const payload = {
+    room_id: roomId,
+    status: statusValue,
+    state: {
+      ...stateObj,
+      status: statusValue
+    }
+  };
+  try {
+    await supabase
+      .from("draft_state")
+      .upsert(payload, { onConflict: "room_id" });
+  } catch (e) {
+    console.warn("Не удалось сохранить состояние драфта", e);
+  }
+}
+
 // --- Меню и переходы между экранами ---
 
 function showScreen(id) {
@@ -493,8 +552,12 @@ function showScreen(id) {
   if (el) el.classList.add("active");
   if (id === "players") renderPlayersList();
   if (id === "online") {
-    renderOnlinePool();
-    renderOnlineParticipants();
+    if (onlineState.room) {
+      refreshOnlineRoom();
+    } else {
+      renderOnlinePool();
+      renderOnlineParticipants();
+    }
   }
 }
 
@@ -652,22 +715,29 @@ function populateOfflineCaptains() {
   };
 }
 
+function getEmptyOnlineDraft() {
+  return {
+    status: DRAFT_STATUS.idle,
+    map: MAPS[0],
+    mode: "human_vs_human",
+    aiStrategy1: "balanced",
+    aiStrategy2: "balanced",
+    captain1Id: null,
+    captain2Id: null,
+    captain1: null,
+    captain2: null,
+    pool: [],
+    available: [],
+    team1: [],
+    team2: [],
+    currentPickIndex: 0,
+    finished: false
+  };
+}
+
 function ensureOnlineDraftState() {
   if (!onlineState.draft) {
-    onlineState.draft = {
-      map: MAPS[0],
-      mode: "human_vs_human",
-      aiStrategy1: "balanced",
-      aiStrategy2: "balanced",
-      captain1: null,
-      captain2: null,
-      pool: [],
-      available: [],
-      team1: [],
-      team2: [],
-      currentPickIndex: 0,
-      finished: false
-    };
+    onlineState.draft = getEmptyOnlineDraft();
   }
   return onlineState.draft;
 }
@@ -698,47 +768,115 @@ function populateOnlineCaptains() {
   sel1.innerHTML = '<option value="">— не выбран —</option>';
   sel2.innerHTML = '<option value="">— не выбран —</option>';
 
-  players.forEach(p => {
+  (onlineState.participants || []).forEach(p => {
     const o1 = document.createElement("option");
-    o1.value = p.name;
-    o1.textContent = p.name;
+    o1.value = p.id;
+    o1.textContent = p.nickname;
     sel1.appendChild(o1);
     const o2 = document.createElement("option");
-    o2.value = p.name;
-    o2.textContent = p.name;
+    o2.value = p.id;
+    o2.textContent = p.nickname;
     sel2.appendChild(o2);
   });
 
   if (current1) sel1.value = current1;
   if (current2) sel2.value = current2;
 
-  sel1.onchange = () => {
-    draft.captain1 = sel1.value || null;
-    if (draft.captain2 === draft.captain1) {
-      draft.captain2 = null;
-      sel2.value = "";
+  sel1.onchange = () => handleCaptainSelectChange();
+  sel2.onchange = () => handleCaptainSelectChange();
+}
+
+function updateOnlineCaptainSelectors() {
+  const draft = ensureOnlineDraftState();
+  // если роли уже расставлены в участниках — подтягиваем в драфт
+  const currentParts = onlineState.participants || [];
+  if (!draft.captain1Id) {
+    const p1 = currentParts.find(p => p.role === "captain1");
+    if (p1) {
+      draft.captain1Id = String(p1.id);
+      draft.captain1 = p1.nickname;
     }
-    stripCaptainsFromDraft(draft);
-    renderOnlinePool();
-  };
-  sel2.onchange = () => {
-    draft.captain2 = sel2.value || null;
-    if (draft.captain1 === draft.captain2) {
-      draft.captain1 = null;
-      sel1.value = "";
+  }
+  if (!draft.captain2Id) {
+    const p2 = currentParts.find(p => p.role === "captain2");
+    if (p2) {
+      draft.captain2Id = String(p2.id);
+      draft.captain2 = p2.nickname;
     }
-    stripCaptainsFromDraft(draft);
-    renderOnlinePool();
-  };
+  }
+  populateOnlineCaptains();
+}
+
+function getParticipantById(id) {
+  return (onlineState.participants || []).find(p => String(p.id) === String(id));
+}
+
+async function handleCaptainSelectChange() {
+  if (!onlineState.isCreator) return;
+  const draft = ensureOnlineDraftState();
+  const sel1 = $("online-captain1");
+  const sel2 = $("online-captain2");
+  const id1 = sel1.value || null;
+  const id2 = sel2.value || null;
+  if (id1 && id2 && id1 === id2) {
+    alert("Капитаны должны быть разными участниками.");
+    sel2.value = "";
+    return;
+  }
+
+  const p1 = id1 ? getParticipantById(id1) : null;
+  const p2 = id2 ? getParticipantById(id2) : null;
+  draft.captain1Id = id1;
+  draft.captain2Id = id2;
+  draft.captain1 = p1 ? p1.nickname : null;
+  draft.captain2 = p2 ? p2.nickname : null;
+
+  // Обновляем роли участников в Supabase
+  try {
+    const supabase = initSupabase();
+    const updates = [];
+    (onlineState.participants || []).forEach(p => {
+      let desired = p.role;
+      if (p.id === Number(id1) || String(p.id) === id1) desired = "captain1";
+      else if (p.id === Number(id2) || String(p.id) === id2) desired = "captain2";
+      else if (p.role === "captain1" || p.role === "captain2") desired = "viewer";
+      if (desired !== p.role) updates.push({ id: p.id, role: desired });
+    });
+    for (const u of updates) {
+      await supabase.from("room_participants").update({ role: u.role }).eq("id", u.id);
+    }
+    // обновляем локальные роли
+    updates.forEach(u => {
+      const ref = getParticipantById(u.id);
+      if (ref) ref.role = u.role;
+      if (onlineState.myParticipantId === u.id) onlineState.myRole = u.role;
+    });
+  } catch (e) {
+    console.warn("Не удалось обновить роли капитанов", e);
+  }
+
+  stripCaptainsFromDraft(draft);
+  renderOnlinePool();
+  saveDraftState(onlineState.room ? onlineState.room.id : null, draft);
+  renderOnlineDraft();
 }
 
 function syncOnlineControlsAccess() {
   const isCreator = onlineState.isCreator;
-  ["online-map-select","online-mode-select","online-ai-strategy-1","online-ai-strategy-2","online-pool-all","online-pool-top20","online-pool-clear","online-start-draft"].forEach(id => {
+  [
+    "online-map-select",
+    "online-mode-select",
+    "online-ai-strategy-1",
+    "online-ai-strategy-2",
+    "online-pool-all",
+    "online-pool-top20",
+    "online-pool-clear",
+    "online-start-draft"
+  ].forEach(id => {
     const el = $(id);
     if (el) el.disabled = !isCreator;
   });
-  populateOnlineCaptains();
+  updateOnlineCaptainSelectors();
 }
 
 function updateOfflineModeUI() {
@@ -1386,6 +1524,7 @@ function initOnlineScreen() {
   $("online-join-room").addEventListener("click", joinOnlineRoom);
   $("online-refresh-rooms").addEventListener("click", refreshOnlineRooms);
   $("online-delete-room").addEventListener("click", deleteOnlineRoom);
+  $("online-refresh-room").addEventListener("click", refreshOnlineRoom);
   $("online-admin-verify").addEventListener("click", () => {
     const pwd = ($("online-admin-pass").value || "").trim();
     if (pwd === onlineState.adminPassword) {
@@ -1513,16 +1652,20 @@ async function createOnlineRoom() {
     .single();
   if (!pErr && participant) {
     onlineState.myParticipantId = participant.id;
+    onlineState.participants = [participant];
   }
 
   const draft = ensureOnlineDraftState();
-  const cap1 = draft.captain1;
+  const cap1 = participant ? participant.nickname : draft.captain1;
   const cap2 = draft.captain2;
   onlineState.draft = {
+    ...getEmptyOnlineDraft(),
     map: draft.map || MAPS[0],
     mode: draft.mode || "human_vs_human",
     aiStrategy1: draft.aiStrategy1 || "balanced",
     aiStrategy2: draft.aiStrategy2 || "balanced",
+    captain1Id: participant ? String(participant.id) : draft.captain1Id,
+    captain2Id: draft.captain2Id,
     captain1: cap1,
     captain2: cap2,
     pool: players
@@ -1544,6 +1687,7 @@ async function createOnlineRoom() {
   $("online-mode-select").value = onlineState.draft.mode;
   $("online-ai-strategy-1").value = onlineState.draft.aiStrategy1;
   $("online-ai-strategy-2").value = onlineState.draft.aiStrategy2;
+  saveDraftState(roomId, onlineState.draft);
   renderOnlineParticipants();
   renderOnlinePool();
 }
@@ -1622,8 +1766,7 @@ async function joinOnlineRoom() {
   $("online-mode-select").value = onlineState.draft.mode;
   $("online-ai-strategy-1").value = onlineState.draft.aiStrategy1;
   $("online-ai-strategy-2").value = onlineState.draft.aiStrategy2;
-  renderOnlineParticipants();
-  renderOnlinePool();
+  await refreshOnlineRoom();
 }
 
 async function refreshOnlineRooms() {
@@ -1686,6 +1829,7 @@ async function adminDeleteRoom(roomId, code) {
   }
   if (!confirm(`Удалить комнату ${code}?`)) return;
   const supabase = initSupabase();
+  await supabase.from("draft_state").delete().eq("room_id", roomId);
   const { error } = await supabase.from("rooms").delete().eq("id", roomId);
   if (error) {
     alert("Не удалось удалить комнату.");
@@ -1698,6 +1842,7 @@ async function deleteOnlineRoom() {
   if (!onlineState.isCreator || !onlineState.room) return;
   if (!confirm("Удалить комнату и всех участников?")) return;
   const supabase = initSupabase();
+  await supabase.from("draft_state").delete().eq("room_id", onlineState.room.id);
   const { error } = await supabase
     .from("rooms")
     .delete()
@@ -1763,6 +1908,7 @@ async function renderOnlineParticipants() {
       .order("created_at", { ascending: true });
     if (error) throw error;
     parts = data || [];
+    onlineState.participants = parts;
   } catch (e) {
     console.warn("Ошибка загрузки участников", e);
     listEl.innerHTML = "<div class='hint'>Не удалось загрузить участников. Попробуйте обновить комнату.</div>";
@@ -1776,12 +1922,17 @@ async function renderOnlineParticipants() {
     const row = document.createElement("div");
     row.className = "participant-row";
     const isMe = onlineState.myParticipantId === p.id;
+    if (isMe && p.role && p.role !== onlineState.myRole) {
+      onlineState.myRole = p.role;
+    }
     row.innerHTML = `
       <span>${p.nickname}${isMe ? " (ты)" : ""}</span>
       <span class="participant-role">${p.role}</span>
     `;
     listEl.appendChild(row);
   });
+
+  updateOnlineCaptainSelectors();
 
   if (onlineState.isCreator) {
     creatorPanel.classList.remove("hidden");
@@ -1794,6 +1945,18 @@ async function renderOnlineParticipants() {
   }
 }
 
+async function refreshOnlineRoom() {
+  if (!onlineState.room) return;
+  await renderOnlineParticipants();
+  const loaded = await loadDraftState(onlineState.room.id);
+  if (loaded) {
+    onlineState.draft = loaded;
+    stripCaptainsFromDraft(onlineState.draft);
+    renderOnlinePool();
+    renderOnlineDraft();
+  }
+}
+
 function startOnlineDraft() {
   const errBox = $("online-error");
   errBox.textContent = "";
@@ -1802,12 +1965,21 @@ function startOnlineDraft() {
     return;
   }
   const d = ensureOnlineDraftState();
+  d.status = DRAFT_STATUS.draft;
   d.map = $("online-map-select").value;
   d.mode = $("online-mode-select").value;
   d.aiStrategy1 = $("online-ai-strategy-1").value;
   d.aiStrategy2 = $("online-ai-strategy-2").value;
+  const p1 = d.captain1Id ? getParticipantById(d.captain1Id) : null;
+  const p2 = d.captain2Id ? getParticipantById(d.captain2Id) : null;
+  d.captain1 = p1 ? p1.nickname : d.captain1;
+  d.captain2 = p2 ? p2.nickname : d.captain2;
   const cap1 = d.captain1;
   const cap2 = d.captain2;
+  if (!cap1 || !cap2 || d.captain1Id === d.captain2Id) {
+    errBox.textContent = "Нужно выбрать двух разных капитанов среди участников.";
+    return;
+  }
   if (!d.pool || d.pool.length < 10) {
     errBox.textContent = "Нужно минимум 10 игроков в пуле для матча.";
     return;
@@ -1820,6 +1992,7 @@ function startOnlineDraft() {
   d.finished = false;
 
   $("online-match-status").textContent = "Драфт идёт";
+  saveDraftState(onlineState.room.id, d);
   renderOnlineDraft();
 }
 
@@ -1953,6 +2126,7 @@ function humanPickOnline(name) {
   d.currentPickIndex++;
   if (d.currentPickIndex >= DRAFT_ORDER.length) {
     d.finished = true;
+    d.status = DRAFT_STATUS.finished;
     $("online-match-status").textContent = "Завершён";
     const finishEl = $("online-finish");
     if (finishEl) {
@@ -1960,6 +2134,7 @@ function humanPickOnline(name) {
       finishEl.innerHTML = "<strong>Драфт завершён.</strong> Каждая команда укомплектована (капитан + 4 игрока).";
     }
   }
+  saveDraftState(onlineState.room ? onlineState.room.id : null, d);
   renderOnlineDraft();
 }
 
@@ -1986,8 +2161,10 @@ function aiPickOnlineCurrentSide(ctx, scoredList) {
   d.currentPickIndex++;
   if (d.currentPickIndex >= DRAFT_ORDER.length) {
     d.finished = true;
+    d.status = DRAFT_STATUS.finished;
     $("online-match-status").textContent = "Завершён";
   }
+  saveDraftState(onlineState.room ? onlineState.room.id : null, d);
   renderOnlineDraft();
 }
 
@@ -2012,6 +2189,8 @@ function initAdminScreen() {
   $("admin-save-global").addEventListener("click", adminSaveGlobal);
   $("admin-strategies-load").addEventListener("click", adminStrategiesLoad);
   $("admin-strategies-save").addEventListener("click", adminStrategiesSave);
+  $("admin-rooms-refresh").addEventListener("click", adminRoomsSummary);
+  $("admin-clean-rooms").addEventListener("click", adminCleanOldRooms);
   $("admin-change-password-btn").addEventListener("click", adminChangePassword);
 }
 
@@ -2133,6 +2312,59 @@ async function adminChangePassword() {
   } catch (e) {
     console.error(e);
     status.textContent = "Ошибка обновления админ-пароля.";
+  }
+}
+
+async function adminRoomsSummary() {
+  const supabase = initSupabase();
+  const info = $("admin-rooms-info");
+  info.textContent = "Загрузка комнат...";
+  const twoWeeksAgo = new Date(Date.now() - 14*24*60*60*1000).toISOString();
+  try {
+    const { data, error } = await supabase
+      .from("rooms")
+      .select("id, code, created_at")
+      .gte("created_at", twoWeeksAgo)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (error) throw error;
+    info.innerHTML = `Активных комнат за 14 дней: <strong>${data.length}</strong>`;
+    if (data.length) {
+      const list = data.map(r => `${r.code} (${new Date(r.created_at).toLocaleDateString()})`).join(", ");
+      info.innerHTML += `<div class="hint small">${list}</div>`;
+    }
+  } catch (e) {
+    console.warn(e);
+    info.textContent = "Не удалось загрузить список комнат.";
+  }
+}
+
+async function adminCleanOldRooms() {
+  const info = $("admin-rooms-info");
+  if (!onlineState.isAdmin) {
+    info.textContent = "Для очистки комнат нужен админ-пароль (раздел выше).";
+    return;
+  }
+  const supabase = initSupabase();
+  const cutoff = new Date(Date.now() - 14*24*60*60*1000).toISOString();
+  info.textContent = "Удаляем старые комнаты...";
+  try {
+    const { data, error } = await supabase
+      .from("rooms")
+      .select("id")
+      .lt("created_at", cutoff);
+    if (error) throw error;
+    const ids = (data || []).map(r => r.id);
+    if (!ids.length) {
+      info.textContent = "Старых комнат нет.";
+      return;
+    }
+    await supabase.from("draft_state").delete().in("room_id", ids);
+    await supabase.from("rooms").delete().in("id", ids);
+    info.textContent = "Старые комнаты удалены.";
+  } catch (e) {
+    console.error(e);
+    info.textContent = "Не удалось очистить комнаты.";
   }
 }
 

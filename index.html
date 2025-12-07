@@ -316,6 +316,7 @@
                 <span>Статус: <strong id="online-match-status">—</strong></span>
               </div>
               <div class="btn-row" style="margin-top:6px;">
+                <button id="online-refresh-room">Обновить комнату</button>
                 <button id="online-delete-room" class="danger">Удалить комнату</button>
               </div>
 
@@ -326,7 +327,7 @@
                   <select id="online-map-select"></select>
                 </div>
               <div class="form-row">
-                <label>Капитаны команд</label>
+                <label>Капитаны команд (выбираются из участников комнаты)</label>
                 <div class="dual-select-row">
                   <select id="online-captain1">
                     <option value="">— не выбран —</option>
@@ -335,7 +336,7 @@
                     <option value="">— не выбран —</option>
                   </select>
                 </div>
-                <div class="hint small">Капитаны выбраны заранее и уже занимают первый слот в своих командах.</div>
+                <div class="hint small">Доступно только создателю. Капитаны занимают первый слот своих команд.</div>
               </div>
                 <div class="form-row">
                   <label>Режим</label>
@@ -462,6 +463,14 @@
                   <label>Коэффициент влияния Tier</label>
                   <input type="number" step="0.1" min="0" max="3" id="admin-tier-bias" />
                 </div>
+              </div>
+              <div class="form-row">
+                <label>Комнаты</label>
+                <div class="btn-row">
+                  <button id="admin-rooms-refresh">Показать активные комнаты</button>
+                  <button id="admin-clean-rooms">Очистить комнаты старше 14 дней</button>
+                </div>
+                <div id="admin-rooms-info" class="hint small"></div>
               </div>
               <div class="form-row">
                 <label>Смена админ-пароля (глобально через Supabase)</label>
