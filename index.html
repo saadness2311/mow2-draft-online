@@ -32,19 +32,19 @@
         <div class="menu-grid">
           <div class="menu-card" data-target="offline">
             <h2>Оффлайн драфт</h2>
-            <p>Тренируй драфт: ты против ИИ, ИИ против ИИ или ручной режим.</p>
+            <p>Быстрый драфт: ты против ИИ, ИИ против ИИ или ручной режим.</p>
           </div>
           <div class="menu-card" data-target="online">
             <h2>Онлайн комнаты</h2>
-            <p>Создавай комнаты, приглашай капитанов и зрителей, драфтьте вместе.</p>
+            <p>Создай комнату, назначь капитанов и драфтьте вместе.</p>
           </div>
           <div class="menu-card" data-target="players">
             <h2>Игроки и статистика</h2>
-            <p>Редактируй MMR, DPM и роли игроков. Эта база используется ИИ.</p>
+            <p>Управление базой игроков для подсказок ИИ.</p>
           </div>
           <div class="menu-card" data-target="admin">
             <h2>Админ-панель</h2>
-            <p>Глобальная база игроков, стратегии ИИ и настройка паролей.</p>
+            <p>Глобальная база, стратегии ИИ, сервисные действия.</p>
           </div>
         </div>
       </section>
@@ -73,7 +73,7 @@
               </div>
               
               <div class="form-row">
-                <label>Капитаны команд (добавляются автоматически как 5‑й игрок)</label>
+                <label>Капитаны команд</label>
                 <div class="dual-select-row">
                   <select id="offline-captain1">
                     <option value="">— не выбран —</option>
@@ -82,9 +82,7 @@
                     <option value="">— не выбран —</option>
                   </select>
                 </div>
-                <div class="hint small">
-                  Эти два игрока считаются капитанами и сразу входят в состав Команды 1 и Команды 2. Драфт выбирает только остальных четырёх.
-                </div>
+              <div class="hint small">Капитаны сразу занимают первый слот команды.</div>
               </div>
 <div class="form-row" id="offline-human-side-row">
                 <label>За какого капитана играешь ты?</label>
@@ -146,18 +144,20 @@
         <div class="card">
           <div class="draft-layout">
             <div class="team-column">
-              <h4>Команда 1</h4>
+              <h4>Команда 1 <span id="offline-team1-count" class="count-tag"></span></h4>
               <ul id="offline-team1" class="team-list"></ul>
             </div>
             <div class="center-column">
               <h4>Очередность пиков</h4>
+              <div id="offline-pick-status" class="status-line"></div>
               <div id="offline-pick-order" class="pick-order-row"></div>
               <h4 style="margin-top:8px;">Доступные игроки</h4>
               <div id="offline-available" class="scroll-panel tall"></div>
               <div id="offline-suggestions" class="hint-block"></div>
+              <div id="offline-finish" class="hint-block hidden"></div>
             </div>
             <div class="team-column">
-              <h4>Команда 2</h4>
+              <h4>Команда 2 <span id="offline-team2-count" class="count-tag"></span></h4>
               <ul id="offline-team2" class="team-list"></ul>
             </div>
           </div>
@@ -189,9 +189,15 @@
                   <option value="local">Локальная база (только у тебя)</option>
                   <option value="global">Глобальная база (общие сведения)</option>
                 </select>
-                <div class="hint small">
-                  Глобальную базу может обновлять только админ. Игроки могут её использовать для подсказок ИИ.
-                </div>
+                <div class="hint small">Глобальную базу меняет только админ; выбери источник для подсказок ИИ.</div>
+              </div>
+              <div class="form-row">
+                <label>Источник стратегий ИИ</label>
+                <select id="players-strategy-source">
+                  <option value="global">Глобальные (Supabase)</option>
+                  <option value="local">Локальные (кэш браузера)</option>
+                </select>
+                <div class="hint small">Выбор сохраняется и влияет на подсказки/автопики.</div>
               </div>
               <div class="form-row">
                 <label>Фильтры</label>
@@ -221,6 +227,38 @@
               <div id="players-list" class="scroll-panel tall"></div>
             </div>
             <div class="edit-panel" id="player-edit-panel"></div>
+          </div>
+        </div>
+
+        <div class="card" id="strategies-card">
+          <div class="card-header-row">
+            <h3>Управление стратегиями ИИ</h3>
+          </div>
+          <div class="card-row">
+            <div>
+              <div class="form-row">
+                <label>Редактор стратегий</label>
+                <textarea id="strategies-editor" rows="10" class="export-area"></textarea>
+              </div>
+              <div class="btn-row">
+                <button id="strategies-load-current">Подгрузить активные стратегии</button>
+                <button id="strategies-save-local">Сохранить локально</button>
+                <label class="file-btn">
+                  Импорт JSON
+                  <input type="file" id="strategies-import-file" accept="application/json" style="display:none;" />
+                </label>
+                <button id="strategies-export-file">Экспорт JSON</button>
+              </div>
+              <div class="form-row compact">
+                <label>Вероятность альтернативного пика ИИ (0..1)</label>
+                <input type="number" step="0.05" min="0" max="1" id="strategies-alt-chance" />
+              </div>
+              <div class="form-row compact">
+                <label>Коэффициент влияния Tier</label>
+                <input type="number" step="0.1" min="0" max="3" id="strategies-tier-bias" />
+              </div>
+              <div class="hint small">Локальное сохранение кладёт данные в браузер и сразу включает источник «Локальные». Для глобального сохранения используй админ-панель.</div>
+            </div>
           </div>
         </div>
       </section>
@@ -257,6 +295,8 @@
               <div class="form-row">
                 <label>Активные комнаты (последние 2 недели)</label>
                 <div class="btn-row">
+                  <input type="password" id="online-admin-pass" placeholder="Админ-пароль для удаления" />
+                  <button id="online-admin-verify">Подтвердить</button>
                   <button id="online-refresh-rooms">Обновить список</button>
                 </div>
               </div>
@@ -274,6 +314,10 @@
                 <span>Роль: <strong id="online-my-role">—</strong></span>
                 <span>Статус: <strong id="online-match-status">—</strong></span>
               </div>
+              <div class="btn-row" style="margin-top:6px;">
+                <button id="online-refresh-room">Обновить комнату</button>
+                <button id="online-delete-room" class="danger">Удалить комнату</button>
+              </div>
 
               <div class="form-row" style="margin-top:8px;">
                 <label>Настройки матча</label>
@@ -281,6 +325,18 @@
                   <label>Карта</label>
                   <select id="online-map-select"></select>
                 </div>
+              <div class="form-row">
+                <label>Капитаны команд (выбираются из участников комнаты)</label>
+                <div class="dual-select-row">
+                  <select id="online-captain1">
+                    <option value="">— не выбран —</option>
+                    </select>
+                  <select id="online-captain2">
+                    <option value="">— не выбран —</option>
+                  </select>
+                </div>
+                <div class="hint small">Только создатель: капитаны занимают первый слот команд.</div>
+              </div>
                 <div class="form-row">
                   <label>Режим</label>
                   <select id="online-mode-select">
@@ -290,19 +346,33 @@
                   </select>
                 </div>
                 <div class="form-row">
-                  <label>Стратегия ИИ</label>
-                  <select id="online-ai-strategy">
-                    <option value="balanced">Сбалансированная</option>
-                    <option value="infantry_focus">Фокус на пехоте</option>
-                    <option value="motorized_focus">Фокус на мотопехоте</option>
-                    <option value="tanks_focus">Фокус на танках</option>
-                    <option value="artillery_focus">Фокус на арте</option>
-                    <option value="infantry_mech_mix">Пехота + механика</option>
-                    <option value="heavy_at_focus">Тяжёлые танки и ПТО</option>
-                    <option value="aa_defense">ПВО и оборона</option>
-                    <option value="max_dpm">Максимум DPM</option>
-                    <option value="counter_enemy">Контрпик по ролям</option>
-                  </select>
+                  <label>Стратегии ИИ (Команда 1 / Команда 2)</label>
+                  <div class="dual-select-row">
+                    <select id="online-ai-strategy-1">
+                      <option value="balanced">Сбалансированная</option>
+                      <option value="infantry_focus">Фокус на пехоте</option>
+                      <option value="motorized_focus">Фокус на мотопехоте</option>
+                      <option value="tanks_focus">Фокус на танках</option>
+                      <option value="artillery_focus">Фокус на арте</option>
+                      <option value="infantry_mech_mix">Пехота + механика</option>
+                      <option value="heavy_at_focus">Тяжёлые танки и ПТО</option>
+                      <option value="aa_defense">ПВО и оборона</option>
+                      <option value="max_dpm">Максимум DPM</option>
+                      <option value="counter_enemy">Контрпик по ролям</option>
+                    </select>
+                    <select id="online-ai-strategy-2">
+                      <option value="balanced">Сбалансированная</option>
+                      <option value="infantry_focus">Фокус на пехоте</option>
+                      <option value="motorized_focus">Фокус на мотопехоте</option>
+                      <option value="tanks_focus">Фокус на танках</option>
+                      <option value="artillery_focus">Фокус на арте</option>
+                      <option value="infantry_mech_mix">Пехота + механика</option>
+                      <option value="heavy_at_focus">Тяжёлые танки и ПТО</option>
+                      <option value="aa_defense">ПВО и оборона</option>
+                      <option value="max_dpm">Максимум DPM</option>
+                      <option value="counter_enemy">Контрпик по ролям</option>
+                    </select>
+                  </div>
                 </div>
                 <div class="form-row">
                   <label>Пул игроков для матча</label>
@@ -312,11 +382,12 @@
                     <button id="online-pool-clear">Очистить</button>
                   </div>
                   <div id="online-pool-list" class="scroll-panel"></div>
-                  <div class="hint small">
-                    Управлять пулом игроков и запускать драфт может только создатель комнаты.
-                  </div>
+                  <div class="hint small">Пул и старт драфта контролирует создатель.</div>
                 </div>
-                <button id="online-start-draft" class="primary-btn">Запустить / передрафтить матч</button>
+                <div class="btn-row">
+                  <button id="online-start-draft" class="primary-btn">Запустить / передрафтить матч</button>
+                  <button id="online-refresh-state" type="button">Обновить состояние</button>
+                </div>
                 <div id="online-error" class="error-text"></div>
               </div>
             </div>
@@ -331,18 +402,20 @@
           <div id="online-draft-block" class="card" style="margin-top:8px;">
             <div class="draft-layout">
               <div class="team-column">
-                <h4>Команда 1</h4>
+                <h4>Команда 1 <span id="online-team1-count" class="count-tag"></span></h4>
                 <ul id="online-team1" class="team-list"></ul>
               </div>
               <div class="center-column">
                 <h4>Очередность пиков</h4>
+                <div id="online-pick-status" class="status-line"></div>
                 <div id="online-pick-order" class="pick-order-row"></div>
                 <h4 style="margin-top:8px;">Доступные игроки</h4>
                 <div id="online-available" class="scroll-panel tall"></div>
                 <div id="online-suggestions" class="hint-block"></div>
+                <div id="online-finish" class="hint-block hidden"></div>
               </div>
               <div class="team-column">
-                <h4>Команда 2</h4>
+                <h4>Команда 2 <span id="online-team2-count" class="count-tag"></span></h4>
                 <ul id="online-team2" class="team-list"></ul>
               </div>
             </div>
@@ -383,6 +456,22 @@
                   <button id="admin-strategies-save">Сохранить стратегии локально</button>
                 </div>
                 <textarea id="admin-strategies-json" class="export-area" rows="6"></textarea>
+                <div class="form-row compact">
+                  <label>Вероятность альтернативного пика ИИ (0..1)</label>
+                  <input type="number" step="0.05" min="0" max="1" id="admin-alt-chance" />
+                </div>
+                <div class="form-row compact">
+                  <label>Коэффициент влияния Tier</label>
+                  <input type="number" step="0.1" min="0" max="3" id="admin-tier-bias" />
+                </div>
+              </div>
+              <div class="form-row">
+                <label>Комнаты</label>
+                <div class="btn-row">
+                  <button id="admin-rooms-refresh">Показать активные комнаты</button>
+                  <button id="admin-clean-rooms">Очистить комнаты старше 14 дней</button>
+                </div>
+                <div id="admin-rooms-info" class="hint small"></div>
               </div>
               <div class="form-row">
                 <label>Смена админ-пароля (глобально через Supabase)</label>
