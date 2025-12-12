@@ -1,0 +1,166 @@
+{
+  "version": "15.0",
+  "roleGroups": {
+    "infantry": [
+      "infantry",
+      "motorized_infantry",
+      "assault_infantry",
+      "sapper"
+    ],
+    "tanks": [
+      "tanks",
+      "heavy_tanks"
+    ],
+    "mechanical": [
+      "mechanical"
+    ],
+    "support": [
+      "artillery",
+      "spg",
+      "at_artillery",
+      "aa_artillery"
+    ]
+  },
+  "supportSubtypeWeights": {
+    "artillery": 1.0,
+    "spg": 0.9,
+    "at_artillery": 1.2,
+    "aa_artillery": 0.8
+  },
+  "formula": {
+    "normalization": {
+      "mmrMode": "minmax",
+      "mmrMin": 1000,
+      "mmrMax": 2500,
+      "mmrDiv": 100.0,
+      "dpmMode": "div",
+      "dpmDiv": 5000.0
+    },
+    "weights": {
+      "mmr": 1.0,
+      "dpm": 0.03,
+      "rolePref": 0.18,
+      "composition": 0.38,
+      "universal": 0.22,
+      "counter": 0.05,
+      "penaltiesMultiplier": 1.0,
+      "noiseAmplitude": 0.0
+    },
+    "tierDominance": {
+      "enabled": true,
+      "downPenaltyWhenHigherExists": 3.25
+    },
+    "mmrGap": {
+      "threshold": 100,
+      "bonusPer100": 0.18,
+      "explainThreshold": 100
+    },
+    "composition": {
+      "categoryWeights": {
+        "infantry": 1.0,
+        "tanks": 1.0,
+        "mechanical": 1.0,
+        "support": 0.85
+      },
+      "progressBonusPerMissing": 0.95,
+      "alreadySatisfiedFactor": 0.15,
+      "oversupplyPenaltyPerExtra": 0.35,
+      "preferSupportSpecialist": true,
+      "supportSpecialistBonus": 0.35,
+      "universalSupportDiscountFactor": 0.35
+    },
+    "universal": {
+      "minRolesToBeUniversal": 4,
+      "universalBonus": 0.85,
+      "dontSpendUniversalOnSupport": true,
+      "universalOnSupportPenalty": 0.65,
+      "minRolesToAvoidNarrow": 2,
+      "narrowSpecialistPenalty": 0.25
+    },
+    "softCaps": {
+      "supportOnly": {
+        "enabled": true,
+        "maxPreferred": 1,
+        "penaltySecond": 1.6,
+        "penaltyThirdPlus": 2.6
+      },
+      "supportTotal": {
+        "enabled": true,
+        "maxPreferred": 2,
+        "penaltyPerExtra": 0.9
+      }
+    },
+    "counter": {
+      "enabled": true,
+      "globalWeightMultiplier": 0.5,
+      "explainThreshold": 0.6
+    },
+    "planning": {
+      "enabled": true,
+      "candidateTopK": 14,
+      "enemyModel": "power_first",
+      "showFullPlan": true,
+      "showTwoStepPlan": true
+    },
+    "hints": {
+      "alternativesCount": 2,
+      "showBreakdown": true,
+      "showOpponentHintsInHumanVsAI": false
+    }
+  },
+  "counterTable": {
+    "tanks": {
+      "at_artillery": 1.0,
+      "artillery": 0.6,
+      "spg": 0.6,
+      "heavy_tanks": 0.3
+    },
+    "heavy_tanks": {
+      "at_artillery": 1.0,
+      "artillery": 0.75,
+      "spg": 0.7
+    },
+    "mechanical": {
+      "artillery": 0.55,
+      "at_artillery": 0.55
+    },
+    "infantry": {
+      "artillery": 0.55,
+      "spg": 0.45
+    },
+    "motorized_infantry": {
+      "artillery": 0.6,
+      "spg": 0.5
+    },
+    "assault_infantry": {
+      "infantry": 0.35,
+      "artillery": 0.5
+    },
+    "artillery": {
+      "motorized_infantry": 0.35,
+      "assault_infantry": 0.35,
+      "spg": 0.25
+    },
+    "spg": {
+      "motorized_infantry": 0.35,
+      "assault_infantry": 0.35
+    },
+    "aa_artillery": {
+      "spg": 0.25,
+      "artillery": 0.25
+    },
+    "at_artillery": {
+      "tanks": 1.0,
+      "heavy_tanks": 1.0
+    },
+    "sapper": {
+      "tanks": 0.35,
+      "heavy_tanks": 0.35,
+      "infantry": 0.3
+    }
+  },
+  "ui": {
+    "defaultLanguage": "ru",
+    "accentColor": "#7a1f1f"
+  }
+}

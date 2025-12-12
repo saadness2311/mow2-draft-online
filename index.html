@@ -2,491 +2,909 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <title>MoW 2 Draft Project V11</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="icon" type="image/x-icon" href="favicon.ico" />
+  <title>MoW2 Draft Project</title>
+  <link rel="icon" href="favicon.ico" />
   <link rel="stylesheet" href="style.css" />
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 </head>
 <body>
-  <div class="app">
-    <header class="app-header">
-      <div class="logo-title">
-        <img src="favicon.ico" alt="MoW2" class="logo-icon" />
-        <div>
-          <h1>MoW 2 Draft Project</h1>
-          <div class="subtitle">Драфт-команд для Men of War II</div>
+  <header class="app-header">
+    <div class="app-header-left">
+      <img id="app-logo" class="app-logo" alt="Logo" />
+    </div>
+
+    <div class="app-header-center">
+      <div class="app-title-row">
+        <h1 id="app-title" class="app-title">MoW2 Draft Project</h1>
+        <span class="app-version-tag">V15.0</span>
+      </div>
+      <div id="app-subtitle" class="app-subtitle">
+        Offline Draft Tool — Players / Strategies / AI Settings
+      </div>
+    </div>
+
+    <div class="app-header-right">
+      <label class="lang-switch">
+        <span class="lang-switch-label" data-i18n="header.language">Язык</span>
+        <select id="lang-select" class="input">
+          <option value="ru">RU</option>
+          <option value="en">EN</option>
+        </select>
+      </label>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <!-- Главное меню -->
+    <section class="screen active" id="screen-menu">
+      <div class="screen-header">
+        <h2 class="screen-title" data-i18n="menu.title">Главное меню</h2>
+      </div>
+
+      <div class="menu-layout">
+        <div class="menu-left">
+          <div class="card">
+            <div class="card-title" data-i18n="menu.welcomeTitle">MoW2 Draft Project — V15.0</div>
+            <div class="card-subtitle" data-i18n="menu.welcomeSubtitle">
+              Оффлайн режим. Все настройки меняются через интерфейс и сохраняются локально.
+            </div>
+            <div class="menu-image-wrap">
+              <img id="menu-fun-image" class="menu-fun-image" alt="Menu image" />
+              <div class="menu-image-hint" data-i18n="menu.imageHint">
+                Здесь можно загрузить рофляную картинку в разделе «Внешний вид».
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="menu-right">
+          <div class="menu-grid">
+            <div class="menu-card" data-screen-target="screen-offline">
+              <div class="menu-card-title" data-i18n="menu.offlineDraft">Оффлайн драфт</div>
+              <div class="menu-card-desc" data-i18n="menu.offlineDraftDesc">Human vs AI / AI vs AI / Manual</div>
+            </div>
+
+            <div class="menu-card" data-screen-target="screen-players">
+              <div class="menu-card-title" data-i18n="menu.players">Игроки и статистика</div>
+              <div class="menu-card-desc" data-i18n="menu.playersDesc">Редактор базы игроков</div>
+            </div>
+
+            <div class="menu-card" data-screen-target="screen-strategies">
+              <div class="menu-card-title" data-i18n="menu.strategies">Стратегии</div>
+              <div class="menu-card-desc" data-i18n="menu.strategiesDesc">Планы состава и веса ролей</div>
+            </div>
+
+            <div class="menu-card" data-screen-target="screen-coeffs">
+              <div class="menu-card-title" data-i18n="menu.coeffs">Базовые коэффициенты</div>
+              <div class="menu-card-desc" data-i18n="menu.coeffsDesc">Tier-множители и шанс альтернативного пика</div>
+            </div>
+
+            <div class="menu-card" data-screen-target="screen-ai-settings">
+              <div class="menu-card-title" data-i18n="menu.aiSettings">AI-настройки</div>
+              <div class="menu-card-desc" data-i18n="menu.aiSettingsDesc">Вся математика и планирование</div>
+            </div>
+
+            <div class="menu-card" data-screen-target="screen-import-export">
+              <div class="menu-card-title" data-i18n="menu.importExport">Импорт / Экспорт</div>
+              <div class="menu-card-desc" data-i18n="menu.importExportDesc">Отдельно и Bundle</div>
+            </div>
+
+            <div class="menu-card" data-screen-target="screen-appearance">
+              <div class="menu-card-title" data-i18n="menu.appearance">Внешний вид</div>
+              <div class="menu-card-desc" data-i18n="menu.appearanceDesc">Фон, лого, картинка меню</div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="header-right">
-        <span class="version-tag">V11</span>
+    </section>
+
+    <!-- Оффлайн драфт -->
+    <section class="screen" id="screen-offline">
+      <div class="screen-header">
+        <button class="btn btn-secondary" id="btn-back-menu-1" data-i18n="common.backToMenu">Назад в меню</button>
+        <h2 class="screen-title" data-i18n="offline.title">Оффлайн драфт</h2>
       </div>
-    </header>
 
-    <main class="app-body">
-      <!-- Главный экран -->
-      <section id="screen-menu" class="screen active">
-        <div class="screen-header">
-          <h2>Главное меню</h2>
-        </div>
-        <div class="menu-grid">
-          <div class="menu-card" data-target="offline">
-            <h2>Оффлайн драфт</h2>
-            <p>Быстрый драфт: ты против ИИ, ИИ против ИИ или ручной режим.</p>
-          </div>
-          <div class="menu-card" data-target="online">
-            <h2>Онлайн комнаты</h2>
-            <p>Создай комнату, назначь капитанов и драфтьте вместе.</p>
-          </div>
-          <div class="menu-card" data-target="players">
-            <h2>Игроки и статистика</h2>
-            <p>Управление базой игроков для подсказок ИИ.</p>
-          </div>
-          <div class="menu-card" data-target="admin">
-            <h2>Админ-панель</h2>
-            <p>Глобальная база, стратегии ИИ, сервисные действия.</p>
-          </div>
-        </div>
-      </section>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title" data-i18n="offline.matchSettings">Настройки матча</div>
 
-      <!-- Оффлайн драфт -->
-      <section id="screen-offline" class="screen">
-        <div class="screen-header">
-          <h2>Оффлайн драфт</h2>
-          <button class="back-btn" data-back>Назад в меню</button>
+          <div class="form-row">
+            <label class="label" data-i18n="offline.modeLabel">Режим</label>
+            <select id="offline-mode-select" class="input">
+              <option value="human_vs_ai">Human vs AI</option>
+              <option value="ai_vs_ai">AI vs AI</option>
+              <option value="manual">Manual</option>
+            </select>
+          </div>
+
+          <div class="form-row" id="offline-human-side-row">
+            <label class="label" data-i18n="offline.humanSideLabel">Сторона человека</label>
+            <select id="offline-human-side-select" class="input">
+              <option value="team1" data-i18n="offline.team1">Команда 1</option>
+              <option value="team2" data-i18n="offline.team2">Команда 2</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <label class="label" id="offline-strategy-team1-label" data-i18n="offline.strategyTeam1Label">Стратегия Team1</label>
+            <select id="offline-strategy-team1-select" class="input"></select>
+          </div>
+
+          <div class="form-row">
+            <label class="label" id="offline-strategy-team2-label" data-i18n="offline.strategyTeam2Label">Стратегия Team2</label>
+            <select id="offline-strategy-team2-select" class="input"></select>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="form-row">
+            <button class="btn" id="offline-reset-draft-btn" data-i18n="offline.resetDraft">Сбросить драфт</button>
+            <button class="btn btn-secondary" id="offline-reset-all-btn" data-i18n="offline.resetAll">Сбросить всё (пул+капитаны)</button>
+          </div>
+
+          <div class="form-row">
+            <label class="checkbox">
+              <input type="checkbox" id="offline-show-planning-checkbox" />
+              <span data-i18n="offline.showPlanning">Показывать дальний план</span>
+            </label>
+          </div>
+
+          <div class="small-note" id="offline-mode-hint"></div>
         </div>
 
         <div class="card">
-          <div class="card-row">
-            <div>
-              <div class="form-row">
-                <label>Карта</label>
-                <select id="offline-map-select"></select>
-              </div>
-              <div class="form-row">
-                <label>Режим</label>
-                <select id="offline-mode-select">
-                  <option value="human_vs_ai">Я против ИИ</option>
-                  <option value="ai_vs_ai">ИИ против ИИ</option>
-                  <option value="manual">Драфт самостоятельный</option>
-                </select>
-              </div>
-              
-              <div class="form-row">
-                <label>Капитаны команд</label>
-                <div class="dual-select-row">
-                  <select id="offline-captain1">
-                    <option value="">— не выбран —</option>
-                  </select>
-                  <select id="offline-captain2">
-                    <option value="">— не выбран —</option>
-                  </select>
-                </div>
-              <div class="hint small">Капитаны сразу занимают первый слот команды.</div>
-              </div>
-<div class="form-row" id="offline-human-side-row">
-                <label>За какого капитана играешь ты?</label>
-                <select id="offline-human-side">
-                  <option value="team1">Капитан 1 (Команда 1)</option>
-                  <option value="team2">Капитан 2 (Команда 2)</option>
-                </select>
-              </div>
-              <div class="form-row">
-                <label>Стратегии ИИ (Команда 1 / Команда 2)</label>
-                <div class="dual-select-row">
-                  <select id="offline-ai-strategy-1">
-                    <option value="balanced">Сбалансированная</option>
-                    <option value="infantry_focus">Фокус на пехоте</option>
-                    <option value="motorized_focus">Фокус на мотопехоте</option>
-                    <option value="tanks_focus">Фокус на танках</option>
-                    <option value="artillery_focus">Фокус на арте</option>
-                    <option value="infantry_mech_mix">Пехота + механика</option>
-                    <option value="heavy_at_focus">Тяжёлые танки и ПТО</option>
-                    <option value="aa_defense">ПВО и оборона</option>
-                    <option value="max_dpm">Максимум DPM</option>
-                    <option value="counter_enemy">Контрпик по ролям</option>
-                  </select>
-                  <select id="offline-ai-strategy-2">
-                    <option value="balanced">Сбалансированная</option>
-                    <option value="infantry_focus">Фокус на пехоте</option>
-                    <option value="motorized_focus">Фокус на мотопехоте</option>
-                    <option value="tanks_focus">Фокус на танках</option>
-                    <option value="artillery_focus">Фокус на арте</option>
-                    <option value="infantry_mech_mix">Пехота + механика</option>
-                    <option value="heavy_at_focus">Тяжёлые танки и ПТО</option>
-                    <option value="aa_defense">ПВО и оборона</option>
-                    <option value="max_dpm">Максимум DPM</option>
-                    <option value="counter_enemy">Контрпик по ролям</option>
-                  </select>
-                </div>
-                <div class="hint small">
-                  Для режима «ИИ против ИИ» задай разные стратегии для Команды 1 и Команды 2.
-                </div>
-              </div>
-            </div>
+          <div class="card-title" data-i18n="offline.captainsTitle">Капитаны</div>
 
-            <div>
-              <div class="form-row">
-                <label>Пул игроков для драфта</label>
-                <div class="btn-row">
-                  <button id="offline-pool-all">Все игроки</button>
-                  <button id="offline-pool-top20">Топ-20 по MMR</button>
-                  <button id="offline-pool-clear">Очистить</button>
-                </div>
-              </div>
-              <div id="offline-pool-list" class="scroll-panel tall"></div>
-            </div>
+          <div class="form-row">
+            <label class="label" data-i18n="offline.captain1Search">Поиск капитана 1</label>
+            <input id="offline-captain1-search" class="input" type="text" placeholder="..." />
           </div>
-          <button id="offline-start-draft" class="primary-btn" style="margin-top:6px;">Запустить драфт</button>
-          <div id="offline-error" class="error-text"></div>
+          <div class="form-row">
+            <label class="label" data-i18n="offline.captain1Select">Капитан команды 1</label>
+            <select id="offline-captain1-select" class="input"></select>
+          </div>
+
+          <div class="form-row">
+            <label class="label" data-i18n="offline.captain2Search">Поиск капитана 2</label>
+            <input id="offline-captain2-search" class="input" type="text" placeholder="..." />
+          </div>
+          <div class="form-row">
+            <label class="label" data-i18n="offline.captain2Select">Капитан команды 2</label>
+            <select id="offline-captain2-select" class="input"></select>
+          </div>
+
+          <div class="error-text" id="offline-captains-error"></div>
+          <div class="small-note" data-i18n="offline.captainsNote">
+            Капитаны учитываются в составе и в логике стратегий, но не выбираются как обычные пики.
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title" data-i18n="offline.poolTitle">Пул игроков</div>
+
+          <div class="form-row">
+            <button class="btn" id="offline-pool-all-btn" data-i18n="offline.poolAll">Все игроки в пул</button>
+            <button class="btn" id="offline-pool-top20-btn" data-i18n="offline.poolTop20">Топ-20 по MMR</button>
+            <button class="btn btn-secondary" id="offline-pool-clear-btn" data-i18n="offline.poolClear">Очистить пул</button>
+          </div>
+
+          <div class="scroll-panel tall">
+            <table class="table" id="offline-pool-table">
+              <thead>
+                <tr>
+                  <th data-i18n="common.inPool">В пуле</th>
+                  <th data-i18n="common.name">Имя</th>
+                  <th data-i18n="common.tier">Tier</th>
+                  <th data-i18n="common.mmr">MMR</th>
+                  <th data-i18n="common.dpm">DPM</th>
+                  <th data-i18n="common.roles">Роли</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <div class="small-note" data-i18n="offline.poolNote">
+            В пул попадают только кандидаты на пики (капитаны не управляются пулом).
+          </div>
         </div>
 
         <div class="card">
-          <div class="draft-layout">
-            <div class="team-column">
-              <h4>Команда 1 <span id="offline-team1-count" class="count-tag"></span></h4>
-              <ul id="offline-team1" class="team-list"></ul>
+          <div class="card-title" data-i18n="offline.draftStateTitle">Текущее состояние драфта</div>
+          <div class="status-text" id="offline-draft-status"></div>
+
+          <div class="grid-2">
+            <div class="subcard">
+              <div class="subcard-title" data-i18n="offline.team1Title">Команда 1</div>
+              <div class="small-note">
+                <span data-i18n="offline.captain">Капитан:</span>
+                <span id="offline-team1-captain-name">—</span>
+              </div>
+              <ul class="list" id="offline-team1-list"></ul>
             </div>
-            <div class="center-column">
-              <h4>Очередность пиков</h4>
-              <div id="offline-pick-status" class="status-line"></div>
-              <div id="offline-pick-order" class="pick-order-row"></div>
-              <h4 style="margin-top:8px;">Доступные игроки</h4>
-              <div id="offline-available" class="scroll-panel tall"></div>
-              <div id="offline-suggestions" class="hint-block"></div>
-              <div id="offline-finish" class="hint-block hidden"></div>
-            </div>
-            <div class="team-column">
-              <h4>Команда 2 <span id="offline-team2-count" class="count-tag"></span></h4>
-              <ul id="offline-team2" class="team-list"></ul>
+
+            <div class="subcard">
+              <div class="subcard-title" data-i18n="offline.team2Title">Команда 2</div>
+              <div class="small-note">
+                <span data-i18n="offline.captain">Капитан:</span>
+                <span id="offline-team2-captain-name">—</span>
+              </div>
+              <ul class="list" id="offline-team2-list"></ul>
             </div>
           </div>
 
-          <div class="form-row" style="margin-top:10px;">
-            <label>Экспорт результата</label>
-            <textarea id="offline-export-output" class="export-area" rows="5" readonly></textarea>
-            <button id="offline-export-btn">Сформировать текст для копирования</button>
+          <div class="hr"></div>
+
+          <div class="subcard">
+            <div class="subcard-title" data-i18n="offline.pickOrder">Порядок пиков</div>
+            <ol class="list" id="offline-draft-order"></ol>
           </div>
         </div>
-      </section>
+      </div>
 
-      <!-- Игроки и статистика -->
-      <section id="screen-players" class="screen">
-        <div class="screen-header">
-          <h2>Игроки и статистика</h2>
-          <button class="back-btn" data-back>Назад в меню</button>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title" data-i18n="offline.availablePlayers">Доступные игроки</div>
+          <div class="small-note" id="offline-available-note"></div>
+
+          <div class="scroll-panel tall" id="offline-available-list"></div>
         </div>
 
         <div class="card">
-          <div class="card-header-row">
-            <h3>База игроков</h3>
-          </div>
-          <div class="card-row">
-            <div>
-              <div class="form-row">
-                <label>Источник данных для драфта</label>
-                <select id="players-source">
-                  <option value="local">Локальная база (только у тебя)</option>
-                  <option value="global">Глобальная база (общие сведения)</option>
-                </select>
-                <div class="hint small">Глобальную базу меняет только админ; выбери источник для подсказок ИИ.</div>
-              </div>
-              <div class="form-row">
-                <label>Источник стратегий ИИ</label>
-                <select id="players-strategy-source">
-                  <option value="global">Глобальные (Supabase)</option>
-                  <option value="local">Локальные (кэш браузера)</option>
-                </select>
-                <div class="hint small">Выбор сохраняется и влияет на подсказки/автопики.</div>
-              </div>
-              <div class="form-row">
-                <label>Фильтры</label>
-                <input type="text" id="players-filter-name" placeholder="Поиск по имени..." />
-              </div>
-              <div class="form-row">
-                <label>Фильтр по Tier</label>
-                <select id="players-filter-tier">
-                  <option value="">Все</option>
-                  <option value="S">S</option>
-                  <option value="A">A</option>
-                  <option value="B">B</option>
-                  <option value="C">C</option>
-                  <option value="D">D</option>
-                  <option value="F">F</option>
-                </select>
-              </div>
-              <div class="btn-row">
-                <button id="players-export-local">Экспорт локальной базы</button>
-                <label class="file-btn">
-                  Импорт локальной базы
-                  <input type="file" id="players-import-local" accept="application/json" style="display:none;" />
-                </label>
-              </div>
+          <div class="card-title" data-i18n="offline.hintsTitle">Подсказки и планирование</div>
+
+          <div class="hints-grid">
+            <div class="hint-panel" id="hint-panel-team1">
+              <div class="hint-title" id="hint-team1-title" data-i18n="offline.hintsTeam1">Подсказки Team1</div>
+              <div class="hint-best" id="offline-hint-team1-best"></div>
+              <div class="hint-alts" id="offline-hint-team1-alts"></div>
+              <div class="planning-block" id="offline-plan-team1"></div>
             </div>
-            <div>
-              <div id="players-list" class="scroll-panel tall"></div>
+
+            <div class="hint-panel" id="hint-panel-team2">
+              <div class="hint-title" id="hint-team2-title" data-i18n="offline.hintsTeam2">Подсказки Team2</div>
+              <div class="hint-best" id="offline-hint-team2-best"></div>
+              <div class="hint-alts" id="offline-hint-team2-alts"></div>
+              <div class="planning-block" id="offline-plan-team2"></div>
             </div>
-            <div class="edit-panel" id="player-edit-panel"></div>
           </div>
+
+          <div class="small-note" id="offline-hints-note"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" data-i18n="offline.exportTitle">Экспорт результата</div>
+
+        <div class="form-row">
+          <button class="btn" id="offline-finish-btn" data-i18n="offline.finishDraft">Завершить драфт</button>
+          <button class="btn btn-secondary" id="offline-copy-export-btn" data-i18n="offline.copyExport">Скопировать в буфер</button>
+          <span class="small-note" id="offline-export-status"></span>
         </div>
 
-        <div class="card" id="strategies-card">
-          <div class="card-header-row">
-            <h3>Управление стратегиями ИИ</h3>
-          </div>
-          <div class="card-row">
-            <div>
-              <div class="form-row">
-                <label>Редактор стратегий</label>
-                <textarea id="strategies-editor" rows="10" class="export-area"></textarea>
-              </div>
-              <div class="btn-row">
-                <button id="strategies-load-current">Подгрузить активные стратегии</button>
-                <button id="strategies-save-local">Сохранить локально</button>
-                <label class="file-btn">
-                  Импорт JSON
-                  <input type="file" id="strategies-import-file" accept="application/json" style="display:none;" />
-                </label>
-                <button id="strategies-export-file">Экспорт JSON</button>
-              </div>
-              <div class="form-row compact">
-                <label>Вероятность альтернативного пика ИИ (0..1)</label>
-                <input type="number" step="0.05" min="0" max="1" id="strategies-alt-chance" />
-              </div>
-              <div class="form-row compact">
-                <label>Коэффициент влияния Tier</label>
-                <input type="number" step="0.1" min="0" max="3" id="strategies-tier-bias" />
-              </div>
-              <div class="hint small">Локальное сохранение кладёт данные в браузер и сразу включает источник «Локальные». Для глобального сохранения используй админ-панель.</div>
-            </div>
-          </div>
-        </div>
-      </section>
+        <textarea id="offline-export-text" class="textarea" rows="12" readonly></textarea>
+      </div>
+    </section>
 
-      <!-- Онлайн комнаты -->
-      <section id="screen-online" class="screen">
-        <div class="screen-header">
-          <h2>Онлайн комнаты</h2>
-          <button class="back-btn" data-back>Назад в меню</button>
+    <!-- Игроки -->
+    <section class="screen" id="screen-players">
+      <div class="screen-header">
+        <button class="btn btn-secondary" id="btn-back-menu-2" data-i18n="common.backToMenu">Назад в меню</button>
+        <h2 class="screen-title" data-i18n="players.title">Игроки и статистика</h2>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title" data-i18n="players.listTitle">Список игроков</div>
+
+          <div class="form-row">
+            <label class="label" data-i18n="players.filterName">Фильтр по имени</label>
+            <input id="players-filter-name" class="input" type="text" />
+          </div>
+
+          <div class="form-row">
+            <label class="label" data-i18n="players.filterTier">Фильтр по Tier</label>
+            <select id="players-filter-tier" class="input">
+              <option value="" data-i18n="players.allTiers">Все</option>
+              <option value="S">S</option>
+              <option value="A">A</option>
+              <option value="B">B</option>
+              <option value="C">C</option>
+              <option value="D">D</option>
+              <option value="F">F</option>
+            </select>
+          </div>
+
+          <div class="scroll-panel tall">
+            <table class="table" id="players-table">
+              <thead>
+                <tr>
+                  <th data-i18n="common.name">Имя</th>
+                  <th data-i18n="common.tier">Tier</th>
+                  <th data-i18n="common.mmr">MMR</th>
+                  <th data-i18n="common.dpm">DPM</th>
+                  <th data-i18n="common.roles">Роли</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <div class="form-row">
+            <button class="btn" id="players-add-new-btn" data-i18n="players.addNew">Добавить нового игрока</button>
+            <button class="btn btn-secondary" id="players-export-btn" data-i18n="common.exportJson">Экспорт JSON</button>
+            <button class="btn btn-secondary" id="players-import-btn" data-i18n="common.importJson">Импорт JSON</button>
+            <input id="players-import-file" type="file" accept="application/json" style="display:none" />
+          </div>
+
+          <div class="small-note" id="players-status"></div>
         </div>
 
         <div class="card">
-          <div class="card-row">
-            <div>
-              <div class="form-row">
-                <label>Твой ник в комнате</label>
-                <input type="text" id="online-nickname" placeholder="Временный ник (для этой комнаты)" />
-              </div>
-              <div class="form-row">
-                <label>Создать комнату</label>
-                <input type="password" id="online-create-password" placeholder="Пароль комнаты (опционально)" />
-                <button id="online-create-room">Создать комнату</button>
-                <div id="online-create-result" class="hint small"></div>
-              </div>
-              <div class="form-row">
-                <label>Войти в комнату</label>
-                <input type="text" id="online-join-code" placeholder="Код комнаты (например, AB3KX)" />
-                <input type="password" id="online-join-password" placeholder="Пароль комнаты (если есть)" />
-                <button id="online-join-room">Войти</button>
-                <div id="online-join-result" class="hint small"></div>
-              </div>
-            </div>
-            <div>
-              <div class="form-row">
-                <label>Активные комнаты (последние 2 недели)</label>
-                <div class="btn-row">
-                  <input type="password" id="online-admin-pass" placeholder="Админ-пароль для удаления" />
-                  <button id="online-admin-verify">Подтвердить</button>
-                  <button id="online-refresh-rooms">Обновить список</button>
-                </div>
-              </div>
-              <div id="online-rooms-list" class="scroll-panel tall"></div>
-            </div>
+          <div class="card-title" data-i18n="players.editTitle">Редактирование игрока</div>
+
+          <div class="form-row">
+            <label class="label" data-i18n="common.name">Имя</label>
+            <input id="player-edit-name" class="input" type="text" />
           </div>
+
+          <div class="form-row">
+            <label class="label" data-i18n="common.tier">Tier</label>
+            <select id="player-edit-tier" class="input">
+              <option value="S">S</option>
+              <option value="A">A</option>
+              <option value="B">B</option>
+              <option value="C">C</option>
+              <option value="D">D</option>
+              <option value="F">F</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <label class="label" data-i18n="common.mmr">MMR</label>
+            <input id="player-edit-mmr" class="input" type="number" min="0" step="1" />
+          </div>
+
+          <div class="form-row">
+            <label class="label" data-i18n="common.dpm">DPM</label>
+            <input id="player-edit-dpm" class="input" type="number" min="0" step="1" />
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="card-subtitle" data-i18n="players.rolesTitle">Роли игрока</div>
+          <div class="roles-grid" id="player-edit-roles"></div>
+
+          <div class="hr"></div>
+
+          <div class="form-row">
+            <button class="btn" id="players-save-btn" data-i18n="common.save">Сохранить</button>
+            <button class="btn btn-danger" id="players-delete-btn" data-i18n="common.delete">Удалить</button>
+          </div>
+
+          <div class="small-note" id="players-edit-status"></div>
         </div>
+      </div>
+    </section>
 
-        <div id="online-room-section" class="card hidden">
-          <div class="card-row">
-            <div>
-              <h3>Комната</h3>
-              <div class="room-info">
-                <span>Код: <strong id="online-room-code">—</strong></span>
-                <span>Роль: <strong id="online-my-role">—</strong></span>
-                <span>Статус: <strong id="online-match-status">—</strong></span>
-              </div>
-              <div class="btn-row" style="margin-top:6px;">
-                <button id="online-refresh-room">Обновить комнату</button>
-                <button id="online-delete-room" class="danger">Удалить комнату</button>
-              </div>
+    <!-- Стратегии -->
+    <section class="screen" id="screen-strategies">
+      <div class="screen-header">
+        <button class="btn btn-secondary" id="btn-back-menu-3" data-i18n="common.backToMenu">Назад в меню</button>
+        <h2 class="screen-title" data-i18n="strategies.title">Стратегии</h2>
+      </div>
 
-              <div class="form-row" style="margin-top:8px;">
-                <label>Настройки матча</label>
-                <div class="form-row">
-                  <label>Карта</label>
-                  <select id="online-map-select"></select>
-                </div>
-              <div class="form-row">
-                <label>Капитаны команд (выбираются из участников комнаты)</label>
-                <div class="dual-select-row">
-                  <select id="online-captain1">
-                    <option value="">— не выбран —</option>
-                    </select>
-                  <select id="online-captain2">
-                    <option value="">— не выбран —</option>
-                  </select>
-                </div>
-                <div class="hint small">Только создатель: капитаны занимают первый слот команд.</div>
-              </div>
-                <div class="form-row">
-                  <label>Режим</label>
-                  <select id="online-mode-select">
-                    <option value="human_vs_human">Капитан 1 vs Капитан 2</option>
-                    <option value="human_vs_ai">Я против ИИ</option>
-                    <option value="ai_vs_ai">ИИ против ИИ</option>
-                  </select>
-                </div>
-                <div class="form-row">
-                  <label>Стратегии ИИ (Команда 1 / Команда 2)</label>
-                  <div class="dual-select-row">
-                    <select id="online-ai-strategy-1">
-                      <option value="balanced">Сбалансированная</option>
-                      <option value="infantry_focus">Фокус на пехоте</option>
-                      <option value="motorized_focus">Фокус на мотопехоте</option>
-                      <option value="tanks_focus">Фокус на танках</option>
-                      <option value="artillery_focus">Фокус на арте</option>
-                      <option value="infantry_mech_mix">Пехота + механика</option>
-                      <option value="heavy_at_focus">Тяжёлые танки и ПТО</option>
-                      <option value="aa_defense">ПВО и оборона</option>
-                      <option value="max_dpm">Максимум DPM</option>
-                      <option value="counter_enemy">Контрпик по ролям</option>
-                    </select>
-                    <select id="online-ai-strategy-2">
-                      <option value="balanced">Сбалансированная</option>
-                      <option value="infantry_focus">Фокус на пехоте</option>
-                      <option value="motorized_focus">Фокус на мотопехоте</option>
-                      <option value="tanks_focus">Фокус на танках</option>
-                      <option value="artillery_focus">Фокус на арте</option>
-                      <option value="infantry_mech_mix">Пехота + механика</option>
-                      <option value="heavy_at_focus">Тяжёлые танки и ПТО</option>
-                      <option value="aa_defense">ПВО и оборона</option>
-                      <option value="max_dpm">Максимум DPM</option>
-                      <option value="counter_enemy">Контрпик по ролям</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="form-row">
-                  <label>Пул игроков для матча</label>
-                  <div class="btn-row">
-                    <button id="online-pool-all">Все игроки</button>
-                    <button id="online-pool-top20">Топ-20 по MMR</button>
-                    <button id="online-pool-clear">Очистить</button>
-                  </div>
-                  <div id="online-pool-list" class="scroll-panel"></div>
-                  <div class="hint small">Пул и старт драфта контролирует создатель.</div>
-                </div>
-                <div class="btn-row">
-                  <button id="online-start-draft" class="primary-btn">Запустить / передрафтить матч</button>
-                  <button id="online-refresh-state" type="button">Обновить состояние</button>
-                </div>
-                <div id="online-error" class="error-text"></div>
-              </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title" data-i18n="strategies.selectTitle">Выбор стратегии</div>
+
+          <div class="form-row">
+            <label class="label" data-i18n="strategies.current">Текущая стратегия</label>
+            <select id="strategies-select" class="input"></select>
+          </div>
+
+          <div class="form-row">
+            <button class="btn" id="strategies-add-btn" data-i18n="strategies.add">Добавить стратегию</button>
+            <button class="btn btn-danger" id="strategies-delete-btn" data-i18n="strategies.delete">Удалить стратегию</button>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="form-row">
+            <label class="label" data-i18n="strategies.nameRu">Название (RU)</label>
+            <input id="strategies-name-ru" class="input" type="text" />
+          </div>
+          <div class="form-row">
+            <label class="label" data-i18n="strategies.nameEn">Название (EN)</label>
+            <input id="strategies-name-en" class="input" type="text" />
+          </div>
+
+          <div class="form-row">
+            <label class="label" data-i18n="strategies.descRu">Описание (RU)</label>
+            <textarea id="strategies-desc-ru" class="textarea" rows="3"></textarea>
+          </div>
+          <div class="form-row">
+            <label class="label" data-i18n="strategies.descEn">Описание (EN)</label>
+            <textarea id="strategies-desc-en" class="textarea" rows="3"></textarea>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="card-subtitle" data-i18n="strategies.compositionTargets">Цели состава (минимумы на команду из 5)</div>
+
+          <div class="grid-2">
+            <div class="form-row">
+              <label class="label" data-i18n="strategies.targetInfantry">Пехота</label>
+              <input id="strategies-target-infantry" class="input" type="number" min="0" max="5" step="1" />
             </div>
-
-            <div>
-              <h3>Участники</h3>
-              <div id="online-participants" class="scroll-panel tall"></div>
-              <div id="online-creator-panel" class="hint-block hidden" style="margin-top:8px;"></div>
+            <div class="form-row">
+              <label class="label" data-i18n="strategies.targetTanks">Танки</label>
+              <input id="strategies-target-tanks" class="input" type="number" min="0" max="5" step="1" />
+            </div>
+            <div class="form-row">
+              <label class="label" data-i18n="strategies.targetMechanical">Механка</label>
+              <input id="strategies-target-mechanical" class="input" type="number" min="0" max="5" step="1" />
+            </div>
+            <div class="form-row">
+              <label class="label" data-i18n="strategies.targetSupport">Поддержка</label>
+              <input id="strategies-target-support" class="input" type="number" min="0" max="5" step="1" />
             </div>
           </div>
 
-          <div id="online-draft-block" class="card" style="margin-top:8px;">
-            <div class="draft-layout">
-              <div class="team-column">
-                <h4>Команда 1 <span id="online-team1-count" class="count-tag"></span></h4>
-                <ul id="online-team1" class="team-list"></ul>
-              </div>
-              <div class="center-column">
-                <h4>Очередность пиков</h4>
-                <div id="online-pick-status" class="status-line"></div>
-                <div id="online-pick-order" class="pick-order-row"></div>
-                <h4 style="margin-top:8px;">Доступные игроки</h4>
-                <div id="online-available" class="scroll-panel tall"></div>
-                <div id="online-suggestions" class="hint-block"></div>
-                <div id="online-finish" class="hint-block hidden"></div>
-              </div>
-              <div class="team-column">
-                <h4>Команда 2 <span id="online-team2-count" class="count-tag"></span></h4>
-                <ul id="online-team2" class="team-list"></ul>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+          <div class="hr"></div>
 
-      <!-- Админ-панель -->
-      <section id="screen-admin" class="screen">
-        <div class="screen-header">
-          <h2>Админ-панель</h2>
-          <button class="back-btn" data-back>Назад в меню</button>
+          <div class="form-row">
+            <button class="btn" id="strategies-save-btn" data-i18n="common.save">Сохранить</button>
+            <button class="btn btn-secondary" id="strategies-export-btn" data-i18n="common.exportJson">Экспорт JSON</button>
+            <button class="btn btn-secondary" id="strategies-import-btn" data-i18n="common.importJson">Импорт JSON</button>
+            <input id="strategies-import-file" type="file" accept="application/json" style="display:none" />
+          </div>
+
+          <div class="small-note" id="strategies-status"></div>
         </div>
 
         <div class="card">
-          <h3>Вход в админ-режим</h3>
-          <div class="card-row">
-            <div>
-              <div class="form-row">
-                <label>Админ-пароль</label>
-                <input type="password" id="admin-password" placeholder="Пароль администратора" />
-              </div>
-              <button id="admin-login-btn">Войти как админ</button>
-              <div id="admin-login-status" class="hint small"></div>
-            </div>
-            <div id="admin-actions" class="hidden">
-              <div class="form-row">
-                <label>Глобальная база игроков (Supabase)</label>
-                <div class="btn-row">
-                  <button id="admin-load-global">Загрузить глобальную базу → локально/глобально</button>
-                  <button id="admin-save-global">Сохранить текущую глобальную базу → в Supabase</button>
-                </div>
-              </div>
-              <div class="form-row">
-                <label>Стратегии ИИ (JSON ROLE_WEIGHTS)</label>
-                <div class="btn-row">
-                  <button id="admin-strategies-load">Подгрузить текущие стратегии</button>
-                  <button id="admin-strategies-save">Сохранить стратегии локально</button>
-                </div>
-                <textarea id="admin-strategies-json" class="export-area" rows="6"></textarea>
-                <div class="form-row compact">
-                  <label>Вероятность альтернативного пика ИИ (0..1)</label>
-                  <input type="number" step="0.05" min="0" max="1" id="admin-alt-chance" />
-                </div>
-                <div class="form-row compact">
-                  <label>Коэффициент влияния Tier</label>
-                  <input type="number" step="0.1" min="0" max="3" id="admin-tier-bias" />
-                </div>
-              </div>
-              <div class="form-row">
-                <label>Комнаты</label>
-                <div class="btn-row">
-                  <button id="admin-rooms-refresh">Показать активные комнаты</button>
-                  <button id="admin-clean-rooms">Очистить комнаты старше 14 дней</button>
-                </div>
-                <div id="admin-rooms-info" class="hint small"></div>
-              </div>
-              <div class="form-row">
-                <label>Смена админ-пароля (глобально через Supabase)</label>
-                <input type="password" id="admin-master-password" placeholder="Мастер-пароль сайта" />
-                <input type="password" id="admin-new-password" placeholder="Новый админ-пароль" />
-                <button id="admin-change-password-btn">Изменить админ-пароль</button>
-                <div id="admin-change-password-status" class="hint small"></div>
-              </div>
-              <div id="admin-actions-status" class="hint small"></div>
-            </div>
+          <div class="card-title" data-i18n="strategies.roleWeightsTitle">Веса ролей</div>
+          <div class="scroll-panel tall">
+            <table class="table" id="strategies-weights-table">
+              <thead>
+                <tr>
+                  <th data-i18n="common.role">Роль</th>
+                  <th data-i18n="common.weight">Вес</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="card-subtitle" data-i18n="strategies.jsonTitle">JSON (для быстрой правки)</div>
+          <textarea id="strategies-json" class="textarea" rows="10"></textarea>
+          <div class="form-row">
+            <button class="btn btn-secondary" id="strategies-apply-json-btn" data-i18n="strategies.applyJson">Обновить из JSON</button>
           </div>
         </div>
-      </section>
-    </main>
-  </div>
+      </div>
+    </section>
+
+    <!-- Базовые коэффициенты -->
+    <section class="screen" id="screen-coeffs">
+      <div class="screen-header">
+        <button class="btn btn-secondary" id="btn-back-menu-4" data-i18n="common.backToMenu">Назад в меню</button>
+        <h2 class="screen-title" data-i18n="coeffs.title">Базовые коэффициенты</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-title" data-i18n="coeffs.tierMultipliers">Tier множители</div>
+
+        <div class="grid-3">
+          <div class="form-row">
+            <label class="label">S</label>
+            <input id="coeffs-tier-S" class="input" type="number" step="0.1" />
+          </div>
+          <div class="form-row">
+            <label class="label">A</label>
+            <input id="coeffs-tier-A" class="input" type="number" step="0.1" />
+          </div>
+          <div class="form-row">
+            <label class="label">B</label>
+            <input id="coeffs-tier-B" class="input" type="number" step="0.1" />
+          </div>
+          <div class="form-row">
+            <label class="label">C</label>
+            <input id="coeffs-tier-C" class="input" type="number" step="0.1" />
+          </div>
+          <div class="form-row">
+            <label class="label">D</label>
+            <input id="coeffs-tier-D" class="input" type="number" step="0.1" />
+          </div>
+          <div class="form-row">
+            <label class="label">F</label>
+            <input id="coeffs-tier-F" class="input" type="number" step="0.1" />
+          </div>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="grid-2">
+          <div class="form-row">
+            <label class="label" data-i18n="coeffs.altPickChance">Вероятность альтернативного пика</label>
+            <input id="coeffs-altpick" class="input" type="number" min="0" max="1" step="0.01" />
+          </div>
+
+          <div class="form-row">
+            <label class="label" data-i18n="coeffs.tierBias">TierBias (общий множитель)</label>
+            <input id="coeffs-tierbias" class="input" type="number" min="0" step="0.01" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <button class="btn" id="coeffs-save-btn" data-i18n="common.save">Сохранить</button>
+          <button class="btn btn-secondary" id="coeffs-export-btn" data-i18n="common.exportJson">Экспорт JSON</button>
+          <button class="btn btn-secondary" id="coeffs-import-btn" data-i18n="common.importJson">Импорт JSON</button>
+          <input id="coeffs-import-file" type="file" accept="application/json" style="display:none" />
+        </div>
+
+        <div class="small-note" id="coeffs-status"></div>
+      </div>
+    </section>
+
+    <!-- AI настройки -->
+    <section class="screen" id="screen-ai-settings">
+      <div class="screen-header">
+        <button class="btn btn-secondary" id="btn-back-menu-5" data-i18n="common.backToMenu">Назад в меню</button>
+        <h2 class="screen-title" data-i18n="aiSettings.title">AI-настройки</h2>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title" data-i18n="aiSettings.formulaTitle">Формулы и веса</div>
+
+          <div class="grid-2">
+            <div class="form-row">
+              <label class="label" data-i18n="aiSettings.wMmr">Вес MMR</label>
+              <input id="ai-w-mmr" class="input" type="number" step="0.01" />
+            </div>
+            <div class="form-row">
+              <label class="label" data-i18n="aiSettings.wDpm">Вес DPM</label>
+              <input id="ai-w-dpm" class="input" type="number" step="0.01" />
+            </div>
+            <div class="form-row">
+              <label class="label" data-i18n="aiSettings.wRole">Вес ролей</label>
+              <input id="ai-w-role" class="input" type="number" step="0.01" />
+            </div>
+            <div class="form-row">
+              <label class="label" data-i18n="aiSettings.wComp">Вес состава</label>
+              <input id="ai-w-comp" class="input" type="number" step="0.01" />
+            </div>
+            <div class="form-row">
+              <label class="label" data-i18n="aiSettings.wUniversal">Вес универсальности</label>
+              <input id="ai-w-universal" class="input" type="number" step="0.01" />
+            </div>
+            <div class="form-row">
+              <label class="label" data-i18n="aiSettings.wCounter">Вес контров</label>
+              <input id="ai-w-counter" class="input" type="number" step="0.01" />
+            </div>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="grid-2">
+            <div class="form-row">
+              <label class="label" data-i18n="aiSettings.penaltiesMult">Множитель штрафов</label>
+              <input id="ai-penalties-mult" class="input" type="number" step="0.01" />
+            </div>
+            <div class="form-row">
+              <label class="label" data-i18n="aiSettings.noiseAmp">Шум (амплитуда)</label>
+              <input id="ai-noise-amp" class="input" type="number" step="0.01" />
+            </div>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="card-subtitle" data-i18n="aiSettings.tierDominance">Доминирование Tier</div>
+          <div class="form-row">
+            <label class="checkbox">
+              <input type="checkbox" id="ai-tier-dom-enabled" />
+              <span data-i18n="aiSettings.tierDomEnabled">Включено</span>
+            </label>
+          </div>
+          <div class="form-row">
+            <label class="label" data-i18n="aiSettings.tierDownPenalty">Штраф за выбор ниже Tier, если есть выше</label>
+            <input id="ai-tier-down-penalty" class="input" type="number" step="0.01" />
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="card-subtitle" data-i18n="aiSettings.mmrSettings">MMR настройки</div>
+          <div class="grid-2">
+            <div class="form-row">
+              <label class="label" data-i18n="aiSettings.mmrMin">MMR min</label>
+              <input id="ai-mmr-min" class="input" type="number" step="1" />
+            </div>
+            <div class="form-row">
+              <label class="label" data-i18n="aiSettings.mmrMax">MMR max</label>
+              <input id="ai-mmr-max" class="input" type="number" step="1" />
+            </div>
+            <div class="form-row">
+              <label class="label" data-i18n="aiSettings.mmrGapThreshold">Порог разницы MMR</label>
+              <input id="ai-mmr-gap-threshold" class="input" type="number" step="1" />
+            </div>
+            <div class="form-row">
+              <label class="label" data-i18n="aiSettings.mmrGapBonus">Бонус за каждые +100 MMR</label>
+              <input id="ai-mmr-gap-bonus" class="input" type="number" step="0.01" />
+            </div>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="card-subtitle" data-i18n="aiSettings.universalBlock">Универсальность</div>
+          <div class="grid-2">
+            <div class="form-row">
+              <label class="label" data-i18n="aiSettings.universalMinRoles">Универсал: минимум ролей</label>
+              <input id="ai-universal-min-roles" class="input" type="number" step="1" />
+            </div>
+            <div class="form-row">
+              <label class="label" data-i18n="aiSettings.universalBonus">Бонус универсалу</label>
+              <input id="ai-universal-bonus" class="input" type="number" step="0.01" />
+            </div>
+          </div>
+          <div class="form-row">
+            <label class="checkbox">
+              <input type="checkbox" id="ai-dont-spend-universal-support" />
+              <span data-i18n="aiSettings.dontSpendUniversal">Не тратить универсала на поддержку</span>
+            </label>
+          </div>
+          <div class="form-row">
+            <label class="label" data-i18n="aiSettings.universalSupportPenalty">Штраф универсалу за «support-слот»</label>
+            <input id="ai-universal-support-penalty" class="input" type="number" step="0.01" />
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="form-row">
+            <button class="btn" id="ai-settings-save-btn" data-i18n="common.save">Сохранить</button>
+            <button class="btn btn-secondary" id="ai-settings-export-btn" data-i18n="common.exportJson">Экспорт JSON</button>
+            <button class="btn btn-secondary" id="ai-settings-import-btn" data-i18n="common.importJson">Импорт JSON</button>
+            <input id="ai-settings-import-file" type="file" accept="application/json" style="display:none" />
+          </div>
+
+          <div class="small-note" id="ai-settings-status"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title" data-i18n="aiSettings.planningTitle">Планирование, soft-caps, подсказки</div>
+
+          <div class="card-subtitle" data-i18n="aiSettings.planning">Планирование</div>
+          <div class="grid-2">
+            <div class="form-row">
+              <label class="label" data-i18n="aiSettings.planningEnabled">Включено</label>
+              <select id="ai-plan-enabled" class="input">
+                <option value="true" data-i18n="common.yes">Да</option>
+                <option value="false" data-i18n="common.no">Нет</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label class="label" data-i18n="aiSettings.candidateTopK">CandidateTopK</label>
+              <input id="ai-plan-topk" class="input" type="number" step="1" />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <label class="label" data-i18n="aiSettings.enemyModel">Модель врага</label>
+            <select id="ai-enemy-model" class="input">
+              <option value="power_first" data-i18n="aiSettings.enemyPowerFirst">Power-first</option>
+              <option value="same_strategy" data-i18n="aiSettings.enemySameStrategy">Same as selected</option>
+            </select>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="card-subtitle" data-i18n="aiSettings.softCapsTitle">Soft-caps</div>
+          <div class="grid-2">
+            <div class="form-row">
+              <label class="label" data-i18n="aiSettings.supportOnlyMax">Support-only maxPreferred</label>
+              <input id="ai-soft-supportonly-max" class="input" type="number" step="1" />
+            </div>
+            <div class="form-row">
+              <label class="label" data-i18n="aiSettings.supportOnlyPenalty2">Штраф за 2-го support-only</label>
+              <input id="ai-soft-supportonly-pen2" class="input" type="number" step="0.01" />
+            </div>
+            <div class="form-row">
+              <label class="label" data-i18n="aiSettings.supportOnlyPenalty3">Штраф за 3+ support-only</label>
+              <input id="ai-soft-supportonly-pen3" class="input" type="number" step="0.01" />
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="form-row">
+              <label class="label" data-i18n="aiSettings.supportTotalMax">Support total maxPreferred</label>
+              <input id="ai-soft-supporttotal-max" class="input" type="number" step="1" />
+            </div>
+            <div class="form-row">
+              <label class="label" data-i18n="aiSettings.supportTotalPenalty">Штраф за каждый лишний support</label>
+              <input id="ai-soft-supporttotal-pen" class="input" type="number" step="0.01" />
+            </div>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="card-subtitle" data-i18n="aiSettings.hintsTitle">Подсказки</div>
+          <div class="form-row">
+            <label class="label" data-i18n="aiSettings.altsCount">Количество альтернатив</label>
+            <input id="ai-hints-alts" class="input" type="number" step="1" min="0" max="5" />
+          </div>
+
+          <div class="form-row">
+            <label class="checkbox">
+              <input type="checkbox" id="ai-hints-show-opponent-hva" />
+              <span data-i18n="aiSettings.showOpponentHints">Показывать подсказки противника в Human vs AI</span>
+            </label>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="card-subtitle" data-i18n="aiSettings.jsonTitle">JSON (полный объект)</div>
+          <textarea id="ai-settings-json" class="textarea" rows="12"></textarea>
+          <div class="form-row">
+            <button class="btn btn-secondary" id="ai-settings-apply-json-btn" data-i18n="aiSettings.applyJson">Обновить из JSON</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Импорт/Экспорт -->
+    <section class="screen" id="screen-import-export">
+      <div class="screen-header">
+        <button class="btn btn-secondary" id="btn-back-menu-6" data-i18n="common.backToMenu">Назад в меню</button>
+        <h2 class="screen-title" data-i18n="importExport.title">Импорт / Экспорт</h2>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title" data-i18n="importExport.exportTitle">Экспорт</div>
+          <div class="form-row">
+            <button class="btn" id="export-players-btn" data-i18n="importExport.exportPlayers">Экспорт игроков</button>
+            <button class="btn" id="export-strategies-btn" data-i18n="importExport.exportStrategies">Экспорт стратегий</button>
+            <button class="btn" id="export-coeffs-btn" data-i18n="importExport.exportCoeffs">Экспорт коэффициентов</button>
+            <button class="btn" id="export-ai-settings-btn" data-i18n="importExport.exportAiSettings">Экспорт AI-настроек</button>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="card-subtitle" data-i18n="importExport.bundleTitle">Bundle</div>
+          <div class="form-row">
+            <button class="btn" id="export-bundle-btn" data-i18n="importExport.exportBundle">Экспорт Bundle</button>
+            <button class="btn btn-secondary" id="import-bundle-btn" data-i18n="importExport.importBundle">Импорт Bundle</button>
+            <input id="import-bundle-file" type="file" accept="application/json" style="display:none" />
+          </div>
+
+          <div class="small-note" id="import-export-status"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title" data-i18n="importExport.importTitle">Импорт (по отдельности)</div>
+
+          <div class="form-row">
+            <button class="btn btn-secondary" id="import-players-btn" data-i18n="importExport.importPlayers">Импорт игроков</button>
+            <input id="import-players-file" type="file" accept="application/json" style="display:none" />
+          </div>
+
+          <div class="form-row">
+            <button class="btn btn-secondary" id="import-strategies-btn" data-i18n="importExport.importStrategies">Импорт стратегий</button>
+            <input id="import-strategies-file" type="file" accept="application/json" style="display:none" />
+          </div>
+
+          <div class="form-row">
+            <button class="btn btn-secondary" id="import-coeffs-btn" data-i18n="importExport.importCoeffs">Импорт коэффициентов</button>
+            <input id="import-coeffs-file" type="file" accept="application/json" style="display:none" />
+          </div>
+
+          <div class="form-row">
+            <button class="btn btn-secondary" id="import-ai-settings-btn" data-i18n="importExport.importAiSettings">Импорт AI-настроек</button>
+            <input id="import-ai-settings-file" type="file" accept="application/json" style="display:none" />
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="small-note" data-i18n="importExport.note">
+            Все импорты записываются в localStorage и сразу применяются ко всем экранам.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Внешний вид -->
+    <section class="screen" id="screen-appearance">
+      <div class="screen-header">
+        <button class="btn btn-secondary" id="btn-back-menu-7" data-i18n="common.backToMenu">Назад в меню</button>
+        <h2 class="screen-title" data-i18n="appearance.title">Внешний вид</h2>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title" data-i18n="appearance.background">Фон</div>
+
+          <div class="form-row">
+            <label class="label" data-i18n="appearance.uploadBackground">Загрузить фон (png/jpg/webp)</label>
+            <input id="appearance-bg-file" class="input" type="file" accept="image/*" />
+          </div>
+
+          <div class="form-row">
+            <button class="btn btn-secondary" id="appearance-reset-bg-btn" data-i18n="appearance.resetBackground">Сбросить фон</button>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="card-title" data-i18n="appearance.logo">Лого</div>
+          <div class="form-row">
+            <label class="label" data-i18n="appearance.uploadLogo">Загрузить лого</label>
+            <input id="appearance-logo-file" class="input" type="file" accept="image/*" />
+          </div>
+          <div class="form-row">
+            <button class="btn btn-secondary" id="appearance-reset-logo-btn" data-i18n="appearance.resetLogo">Сбросить лого</button>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="card-title" data-i18n="appearance.menuImage">Картинка меню</div>
+          <div class="form-row">
+            <label class="label" data-i18n="appearance.uploadMenuImage">Загрузить картинку</label>
+            <input id="appearance-menuimg-file" class="input" type="file" accept="image/*" />
+          </div>
+          <div class="form-row">
+            <button class="btn btn-secondary" id="appearance-reset-menuimg-btn" data-i18n="appearance.resetMenuImage">Сбросить картинку</button>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="form-row">
+            <label class="label" data-i18n="appearance.accentColor">Акцентный цвет</label>
+            <input id="appearance-accent-color" class="input" type="color" />
+          </div>
+
+          <div class="form-row">
+            <button class="btn" id="appearance-save-btn" data-i18n="common.save">Сохранить</button>
+          </div>
+
+          <div class="small-note" id="appearance-status"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title" data-i18n="appearance.preview">Превью</div>
+          <div class="preview-block">
+            <div class="preview-row">
+              <div class="preview-label" data-i18n="appearance.previewHeader">Шапка</div>
+              <div class="preview-box">
+                <div class="preview-header">
+                  <div class="preview-logo"></div>
+                  <div class="preview-title">MoW2 Draft Project</div>
+                  <div class="preview-badge">V15.0</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="preview-row">
+              <div class="preview-label" data-i18n="appearance.previewCards">Карточки</div>
+              <div class="preview-box">
+                <div class="preview-card">Menu Card</div>
+                <div class="preview-card">Menu Card</div>
+                <div class="preview-card">Menu Card</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="small-note" data-i18n="appearance.note">
+            Фон/лого/картинка меню сохраняются в localStorage и попадают в Bundle.
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
 
   <script src="app.js"></script>
 </body>

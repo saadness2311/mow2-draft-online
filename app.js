@@ -1,2503 +1,4055 @@
-
-// MoW 2 Draft Project - V11 core logic
-
-// --- Константы и глобальные переменные ---
-
-const MAPS = [
-  "Airfield","Bazerville","Borovaya River","Carpathians","Champagne","Coast","Dead River",
-  "Estate","Farm Land","Hunting Grounds","Kursk Fields","Nameless Height","Polesie","Port",
-  "Saint Lo","Suburb","Valley of Death","Village","Volokalamsk Highway","Witches Vale",
-  "Winter March","Chepel","Crossroads","Sandy Path","Marl"
-];
-
-// Порядок пиков – жёстко по ТЗ
-const DRAFT_ORDER = [
-  { pick: 1, captain: "cap1", team: "team1" },
-  { pick: 2, captain: "cap2", team: "team2" },
-  { pick: 3, captain: "cap2", team: "team2" },
-  { pick: 4, captain: "cap1", team: "team1" },
-  { pick: 5, captain: "cap1", team: "team1" },
-  { pick: 6, captain: "cap2", team: "team2" },
-  { pick: 7, captain: "cap1", team: "team1" },
-  { pick: 8, captain: "cap2", team: "team2" },
-];
-
-// Tier множители (конфиг)
-const TIER_MULTIPLIERS = {
-  "S": 10,
-  "A": 2,
-  "B": 1.4,
-  "C": 1.1,
-  "D": 1,
-  "F": 0.7
-};
-
-const ROLE_IDS = [
-  "infantry",
-  "motorized_infantry",
-  "assault_infantry",
-  "mechanical",
-  "tanks",
-  "heavy_tanks",
-  "artillery",
-  "at_artillery",
-  "aa_artillery",
-  "spg",
-  "sapper"
-];
-
-// Базовые веса ролей по стратегиям (текущий активный набор)
-let ROLE_WEIGHTS = {
-  balanced: {
-    infantry: 2.0,
-    motorized_infantry: 1.8,
-    assault_infantry: 1.8,
-    mechanical: 1.5,
-    tanks: 1.6,
-    heavy_tanks: 1.7,
-    artillery: 0.6,
-    at_artillery: 1.4,
-    aa_artillery: 1.2,
-    spg: 1.4,
-    sapper: 1.2
-  },
-  max_dpm: {
-    infantry: 1,
-    motorized_infantry: 1,
-    assault_infantry: 1,
-    mechanical: 1,
-    tanks: 1,
-    heavy_tanks: 1,
-    artillery: 1,
-    at_artillery: 1,
-    aa_artillery: 1,
-    spg: 1,
-    sapper: 1
-  },
-  infantry_focus: {
-    infantry: 2.5,
-    motorized_infantry: 1.8,
-    assault_infantry: 2.2,
-    mechanical: 1.2,
-    tanks: 1.2,
-    heavy_tanks: 1.3,
-    artillery: 0.5,
-    at_artillery: 1.1,
-    aa_artillery: 1.0,
-    spg: 0.8,
-    sapper: 1.4
-  },
-  motorized_focus: {
-    infantry: 1.3,
-    motorized_infantry: 2.4,
-    assault_infantry: 1.8,
-    mechanical: 1.8,
-    tanks: 1.6,
-    heavy_tanks: 1.5,
-    artillery: 0.6,
-    at_artillery: 1.2,
-    aa_artillery: 1.0,
-    spg: 1.2,
-    sapper: 1.1
-  },
-  tanks_focus: {
-    infantry: 1.0,
-    motorized_infantry: 1.2,
-    assault_infantry: 1.1,
-    mechanical: 1.6,
-    tanks: 2.6,
-    heavy_tanks: 2.8,
-    artillery: 0.5,
-    at_artillery: 1.8,
-    aa_artillery: 0.9,
-    spg: 1.9,
-    sapper: 1.0
-  },
-  artillery_focus: {
-    infantry: 1.0,
-    motorized_infantry: 1.0,
-    assault_infantry: 1.0,
-    mechanical: 1.1,
-    tanks: 1.2,
-    heavy_tanks: 1.1,
-    artillery: 2.5,
-    at_artillery: 2.1,
-    aa_artillery: 2.0,
-    spg: 2.2,
-    sapper: 1.3
-  },
-  infantry_mech_mix: {
-    infantry: 2.3,
-    motorized_infantry: 2.0,
-    assault_infantry: 2.0,
-    mechanical: 1.9,
-    tanks: 1.5,
-    heavy_tanks: 1.4,
-    artillery: 0.6,
-    at_artillery: 1.3,
-    aa_artillery: 1.0,
-    spg: 1.1,
-    sapper: 1.4
-  },
-  heavy_at_focus: {
-    infantry: 1.0,
-    motorized_infantry: 1.1,
-    assault_infantry: 1.2,
-    mechanical: 1.2,
-    tanks: 1.7,
-    heavy_tanks: 2.8,
-    artillery: 1.0,
-    at_artillery: 2.5,
-    aa_artillery: 1.1,
-    spg: 2.4,
-    sapper: 1.3
-  },
-  aa_defense: {
-    infantry: 1.2,
-    motorized_infantry: 1.3,
-    assault_infantry: 1.1,
-    mechanical: 1.4,
-    tanks: 1.2,
-    heavy_tanks: 1.1,
-    artillery: 1.0,
-    at_artillery: 1.3,
-    aa_artillery: 2.6,
-    spg: 1.1,
-    sapper: 1.9
-  },
-  counter_enemy: {
-    infantry: 1.4,
-    motorized_infantry: 1.4,
-    assault_infantry: 1.3,
-    mechanical: 1.4,
-    tanks: 1.4,
-    heavy_tanks: 1.5,
-    artillery: 1.3,
-    at_artillery: 1.6,
-    aa_artillery: 1.6,
-    spg: 1.6,
-    sapper: 1.4
-  }
-};
-
-let aiBehavior = {
-  altPickChance: 0.35,
-  tierBias: 1.0
-};
-
-// Локальные/глобальные наборы стратегий и выбор источника
-let roleWeightsLocal = null;
-let roleWeightsGlobal = null;
-let activeStrategySource = "global"; // global | local
-let aiBehaviorLocal = null;
-let aiBehaviorGlobal = null;
-
-// Глобальные массивы игроков
-let playersLocal = [];
-let playersGlobal = [];
-let activeDataset = (function() {
-  try {
-    return localStorage.getItem("mow2_dataset_source") || "global";
-  } catch (e) {
-    return "global";
-  }
-})();
-let players = []; // текущий рабочий массив
-
-// Применить выбранный источник игроков
-function applyDatasetSource(forceLocalFallback = false) {
-  if (activeDataset === "global" && playersGlobal.length && !forceLocalFallback) {
-    players = playersGlobal;
-    return;
-  }
-  players = playersLocal;
-  activeDataset = "local";
-  try { localStorage.setItem("mow2_dataset_source", activeDataset); } catch (e) {}
-}
-
-// Оффлайн драфт состояние
-const offlineDraft = {
-  map: MAPS[0],
-  mode: "human_vs_ai",
-  humanSide: "team1",
-  strategy1: "balanced",
-  strategy2: "balanced",
-  captain1: null,
-  captain2: null,
-  pool: [],
-  available: [],
-  team1: [],
-  team2: [],
-  currentPickIndex: 0,
-  finished: false
-};
-
-// Онлайн состояние (упрощённо)
-const onlineState = {
-  supabase: null,
-  room: null,
-  myParticipantId: null,
-  myRole: "viewer",
-  isCreator: false,
-  participants: [],
-  draft: null,
-  adminPassword: "kozakuapro",
-  isAdmin: false
-};
-
-const DRAFT_STATUS = {
-  idle: "idle",
-  draft: "draft",
-  finished: "finished"
-};
-
-const MASTER_PASSWORD = "kozakuaproloh";
-const ROOMS_LIMIT = 50;
-
-// --- Утилиты ---
-
-function $(id) {
-  return document.getElementById(id);
-}
-
-function safeRoles(p) {
-  if (!p) return [];
-  const r = p.roles;
-  if (!r) return [];
-  if (Array.isArray(r)) return r;
-  if (typeof r === "string") {
-    return r.split(",").map(s => s.trim()).filter(Boolean);
-  }
-  if (typeof r === "object") {
-    return Object.keys(r).filter(k => !!r[k]);
-  }
-  return [];
-}
-
-function tierMultiplier(tier) {
-  return TIER_MULTIPLIERS[tier] || TIER_MULTIPLIERS["D"];
-}
-
-function round(v) {
-  return Math.round(v || 0);
-}
-
-// Нормализация игрока под единый формат
-function normalizePlayer(raw) {
-  const p = { ...raw };
-
-  p.name = p.name || "Unknown";
-  p.tier = p.tier || "D";
-
-  // Статы: сначала ищем в stats, потом на верхнем уровне
-  let mmr = 0;
-  let dpm = 0;
-  if (p.stats && typeof p.stats === "object") {
-    if (p.stats.mmr != null) mmr = Number(p.stats.mmr);
-    if (p.stats.dpm != null) dpm = Number(p.stats.dpm);
-  }
-  if (!mmr && p.mmr != null) mmr = Number(p.mmr);
-  if (!dpm && p.dpm != null) dpm = Number(p.dpm);
-
-  p.mmr = mmr || 0;
-  p.dpm = dpm || 0;
-
-  p.roles = safeRoles(p);
-  if (!Array.isArray(p.roles)) p.roles = [];
-
-  return p;
-}
-
-function normalizePlayers(list) {
-  if (!Array.isArray(list)) return [];
-  return list.map(normalizePlayer);
-}
-
-// --- Загрузка / сохранение локальной базы игроков ---
-
-function loadPlayersLocal() {
-  try {
-    const cached = localStorage.getItem("mow2_players_local_v11");
-    if (cached) {
-      playersLocal = normalizePlayers(JSON.parse(cached));
-      applyDatasetSource();
-      populateOfflineCaptains();
-      populateOnlineCaptains();
-      renderOfflinePool();
-      renderOnlinePool();
-      return;
-    }
-  } catch (e) {
-    console.warn("Failed to load local players cache", e);
-  }
-  fetch("players.json")
-    .then(r => r.json())
-    .then(data => {
-      playersLocal = normalizePlayers(data);
-      applyDatasetSource();
-      populateOfflineCaptains();
-      populateOnlineCaptains();
-      renderOfflinePool();
-      renderOnlinePool();
-    })
-    .catch(err => {
-      console.error("Failed to load players.json", err);
-      playersLocal = [];
-      applyDatasetSource();
-      populateOfflineCaptains();
-      populateOnlineCaptains();
-      renderOfflinePool();
-      renderOnlinePool();
-    });
-}
-
-async function loadPlayersGlobal(forceApply = false) {
-  const supabase = initSupabase();
-  try {
-    const { data, error } = await supabase
-      .from("players_global")
-      .select("*");
-    if (error) throw error;
-    playersGlobal = normalizePlayers(data || []);
-    if (activeDataset === "global" || forceApply) {
-      applyDatasetSource();
-      renderPlayersList();
-      renderMenuSummary();
-      populateOfflineCaptains();
-      populateOnlineCaptains();
-      renderOfflinePool();
-      renderOnlinePool();
-    }
-  } catch (e) {
-    console.warn("Failed to load players_global", e);
-    if (activeDataset === "global") {
-      applyDatasetSource(true);
-      renderPlayersList();
-    }
-  }
-}
-
-function savePlayersLocal() {
-  try {
-    localStorage.setItem("mow2_players_local_v11", JSON.stringify(playersLocal));
-  } catch (e) {
-    console.warn("Failed to save local players", e);
-  }
-}
-
-// --- Загрузка / сохранение стратегий ---
-function loadStrategiesLocal() {
-  try {
-    const cached = localStorage.getItem("mow2_ai_strategies_v11");
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (parsed && parsed.weights) {
-        roleWeightsLocal = parsed.weights;
-        aiBehaviorLocal = parsed.meta || aiBehaviorLocal;
-      } else {
-        roleWeightsLocal = parsed;
-      }
-    }
-    const metaCached = localStorage.getItem("mow2_ai_meta_v11");
-    if (metaCached) {
-      aiBehaviorLocal = { ...aiBehavior, ...JSON.parse(metaCached) };
-    }
-  } catch (e) {
-    console.warn("Failed to load local strategies", e);
-  }
-  if (!roleWeightsLocal) {
-    roleWeightsLocal = JSON.parse(JSON.stringify(ROLE_WEIGHTS));
-  }
-  if (!aiBehaviorLocal) {
-    aiBehaviorLocal = { ...aiBehavior };
-  }
-}
-
-function saveStrategiesLocal() {
-  try {
-    localStorage.setItem("mow2_ai_strategies_v11", JSON.stringify({ weights: roleWeightsLocal, meta: aiBehaviorLocal }));
-    localStorage.setItem("mow2_ai_meta_v11", JSON.stringify(aiBehaviorLocal));
-  } catch (e) {
-    console.warn("Failed to save strategies", e);
-  }
-}
-
-// --- Supabase ---
-
-function initSupabase() {
-  if (onlineState.supabase) return onlineState.supabase;
-  const url = "https://utfudifzuytzbwnxqpcf.supabase.co";
-  const key = "sb_publishable_duqpINIqRBZBtmifX5q94Q_bnc-uuxm";
-  onlineState.supabase = window.supabase.createClient(url, key);
-  return onlineState.supabase;
-}
-
-// Пытаемся подгрузить глобальный админ-пароль из Supabase
-async function loadAdminPasswordGlobal() {
-  try {
-    const supabase = initSupabase();
-    const { data, error } = await supabase
-      .from("admin_config")
-      .select("value")
-      .eq("key", "admin_password")
-      .maybeSingle();
-    if (!error && data && data.value) {
-      onlineState.adminPassword = String(data.value);
-    }
-  } catch (e) {
-    console.warn("Failed to load admin password from Supabase", e);
-  }
-}
-
-async function loadStrategiesGlobal() {
-  try {
-    const supabase = initSupabase();
-    const { data, error } = await supabase
-      .from("admin_config")
-      .select("value")
-      .eq("key", "ai_strategies")
-      .maybeSingle();
-    if (!error && data && data.value) {
-      const parsed = JSON.parse(data.value);
-      if (parsed && parsed.weights) {
-        roleWeightsGlobal = parsed.weights;
-        aiBehaviorGlobal = parsed.meta || aiBehaviorGlobal;
-      } else {
-        roleWeightsGlobal = parsed;
-      }
-    }
-  } catch (e) {
-    console.warn("Failed to load global strategies", e);
-  }
-  if (!roleWeightsGlobal) {
-    roleWeightsGlobal = JSON.parse(JSON.stringify(ROLE_WEIGHTS));
-  }
-  if (!aiBehaviorGlobal) {
-    aiBehaviorGlobal = { ...aiBehavior };
-  }
-  applyStrategySource();
-}
-
-function applyStrategySource() {
-  const stored = localStorage.getItem("mow2_strategy_source");
-  if (stored === "local" || stored === "global") {
-    activeStrategySource = stored;
-  }
-  if (activeStrategySource === "local" && roleWeightsLocal) {
-    ROLE_WEIGHTS = roleWeightsLocal;
-    aiBehavior = aiBehaviorLocal || aiBehavior;
-  } else if (roleWeightsGlobal) {
-    ROLE_WEIGHTS = roleWeightsGlobal;
-    aiBehavior = aiBehaviorGlobal || aiBehavior;
-  }
-}
-
-// --- Draft state (Supabase)
-// Ожидаем таблицу draft_state с колонками: room_id (unique, fk rooms.id), status text, state jsonb ---
-
-async function loadDraftState(roomId) {
-  if (!roomId) return null;
-  const supabase = initSupabase();
-  try {
-    const { data, error } = await supabase
-      .from("draft_state")
-      .select("*")
-      .eq("room_id", roomId)
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) return null;
-    const state = data.state || {};
-    const restored = {
-      ...getEmptyOnlineDraft(),
-      ...state
-    };
-    if (!restored.available || !restored.available.length) {
-      const taken = new Set([...(restored.team1||[]), ...(restored.team2||[])]);
-      restored.available = (restored.pool || []).filter(n => !taken.has(n));
-    }
-    onlineState.draft = restored;
-    return restored;
-  } catch (e) {
-    console.warn("Не удалось загрузить состояние драфта", e);
-    return null;
-  }
-}
-
-async function saveDraftState(roomId, stateObj) {
-  if (!roomId) return;
-  const supabase = initSupabase();
-  const statusValue = stateObj.finished ? DRAFT_STATUS.finished : (stateObj.status || DRAFT_STATUS.draft);
-  const payload = {
-    room_id: roomId,
-    status: statusValue,
-    state: {
-      ...stateObj,
-      status: statusValue
-    }
-  };
-  try {
-    await supabase
-      .from("draft_state")
-      .upsert(payload, { onConflict: "room_id" });
-  } catch (e) {
-    console.warn("Не удалось сохранить состояние драфта", e);
-  }
-}
-
-// --- Меню и переходы между экранами ---
-
-function showScreen(id) {
-  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
-  const el = document.getElementById("screen-" + id);
-  if (el) el.classList.add("active");
-  if (id === "players") renderPlayersList();
-  if (id === "online") {
-    if (onlineState.room) {
-      refreshOnlineRoom();
-    } else {
-      renderOnlinePool();
-      renderOnlineParticipants();
-    }
-  }
-}
-
-function initMenu() {
-  document.querySelectorAll(".menu-card").forEach(card => {
-    card.addEventListener("click", () => {
-      const target = card.getAttribute("data-target");
-      if (!target) return;
-      if (target === "offline") showScreen("offline");
-      if (target === "online") showScreen("online");
-      if (target === "players") showScreen("players");
-      if (target === "admin") showScreen("admin");
-    });
-  });
-  document.querySelectorAll("[data-back]").forEach(btn => {
-    btn.addEventListener("click", () => showScreen("menu"));
-  });
-}
-
-// Краткая сводка по игрокам в главном меню
-function renderMenuSummary() {
-  const box = $("menu-players-summary");
-  if (!box) return;
-  const src = players || [];
-  if (!src.length) {
-    box.innerHTML = "<div class='hint'>База игроков ещё не загружена.</div>";
-    return;
-  }
-  const total = src.length;
-  const tierCounts = { S:0,A:0,B:0,C:0,D:0,F:0 };
-  src.forEach(p => {
-    const t = p.tier || "D";
-    if (tierCounts[t] == null) tierCounts[t] = 0;
-    tierCounts[t]++;
-  });
-  box.innerHTML = `
-    <h3>Сводка по базе игроков</h3>
-    <div class="hint small">
-      Всего игроков: <strong>${total}</strong>. 
-      S: ${tierCounts.S || 0}, A: ${tierCounts.A || 0}, B: ${tierCounts.B || 0}, 
-      C: ${tierCounts.C || 0}, D: ${tierCounts.D || 0}, F: ${tierCounts.F || 0}.
-    </div>
-  `;
-}
-
-// --- Оффлайн-драфт ---
-
-function initOffline() {
-  const mapSel = $("offline-map-select");
-  MAPS.forEach(m => {
-    const opt = document.createElement("option");
-    opt.value = m;
-    opt.textContent = m;
-    mapSel.appendChild(opt);
-  });
-  mapSel.value = offlineDraft.map;
-  mapSel.addEventListener("change", () => {
-    offlineDraft.map = mapSel.value;
-  });
-
-  const modeSel = $("offline-mode-select");
-  modeSel.value = offlineDraft.mode;
-  modeSel.addEventListener("change", () => {
-    offlineDraft.mode = modeSel.value;
-    updateOfflineModeUI();
-  });
-
-  $("offline-human-side").value = offlineDraft.humanSide;
-  $("offline-human-side").addEventListener("change", () => {
-    offlineDraft.humanSide = $("offline-human-side").value;
-  });
-
-  $("offline-ai-strategy-1").value = offlineDraft.strategy1;
-  $("offline-ai-strategy-2").value = offlineDraft.strategy2;
-  $("offline-ai-strategy-1").addEventListener("change", () => {
-    offlineDraft.strategy1 = $("offline-ai-strategy-1").value;
-  });
-  $("offline-ai-strategy-2").addEventListener("change", () => {
-    offlineDraft.strategy2 = $("offline-ai-strategy-2").value;
-  });
-
-  $("offline-pool-all").addEventListener("click", () => {
-    const cap1 = offlineDraft.captain1;
-    const cap2 = offlineDraft.captain2;
-    offlineDraft.pool = players
-      .map(p => p.name)
-      .filter(n => n !== cap1 && n !== cap2);
-    renderOfflinePool();
-  });
-  $("offline-pool-top20").addEventListener("click", () => {
-    const cap1 = offlineDraft.captain1;
-    const cap2 = offlineDraft.captain2;
-    const sorted = [...players].sort((a,b) => (b.mmr||0)-(a.mmr||0));
-    offlineDraft.pool = sorted
-      .map(p => p.name)
-      .filter(n => n !== cap1 && n !== cap2)
-      .slice(0,20);
-    renderOfflinePool();
-  });
-  $("offline-pool-clear").addEventListener("click", () => {
-    offlineDraft.pool = [];
-    renderOfflinePool();
-  });
-
-  $("offline-start-draft").addEventListener("click", startOfflineDraft);
-  $("offline-export-btn").addEventListener("click", exportOfflineResult);
-
-  updateOfflineModeUI();
-  populateOfflineCaptains();
-  renderOfflinePool();
-}
-
-function populateOfflineCaptains() {
-  const sel1 = $("offline-captain1");
-  const sel2 = $("offline-captain2");
-  if (!sel1 || !sel2) return;
-
-  const current1 = offlineDraft.captain1;
-  const current2 = offlineDraft.captain2;
-
-  sel1.innerHTML = '<option value="">— не выбран —</option>';
-  sel2.innerHTML = '<option value="">— не выбран —</option>';
-
-  players.forEach(p => {
-    const o1 = document.createElement("option");
-    o1.value = p.name;
-    o1.textContent = p.name;
-    sel1.appendChild(o1);
-    const o2 = document.createElement("option");
-    o2.value = p.name;
-    o2.textContent = p.name;
-    sel2.appendChild(o2);
-  });
-
-  if (current1) sel1.value = current1;
-  if (current2) sel2.value = current2;
-
-  sel1.onchange = () => {
-    offlineDraft.captain1 = sel1.value || null;
-    if (offlineDraft.captain2 === offlineDraft.captain1) {
-      offlineDraft.captain2 = null;
-      sel2.value = "";
-    }
-    stripCaptainsFromDraft(offlineDraft);
-    renderOfflinePool();
-  };
-  sel2.onchange = () => {
-    offlineDraft.captain2 = sel2.value || null;
-    if (offlineDraft.captain1 === offlineDraft.captain2) {
-      offlineDraft.captain1 = null;
-      sel1.value = "";
-    }
-    stripCaptainsFromDraft(offlineDraft);
-    renderOfflinePool();
-  };
-}
-
-function getEmptyOnlineDraft() {
-  return {
-    status: DRAFT_STATUS.idle,
-    map: MAPS[0],
-    mode: "human_vs_human",
-    aiStrategy1: "balanced",
-    aiStrategy2: "balanced",
-    captain1Id: null,
-    captain2Id: null,
-    captain1: null,
-    captain2: null,
-    pool: [],
-    available: [],
-    team1: [],
-    team2: [],
-    currentPickIndex: 0,
-    finished: false
-  };
-}
-
-function ensureOnlineDraftState() {
-  if (!onlineState.draft) {
-    onlineState.draft = getEmptyOnlineDraft();
-  }
-  return onlineState.draft;
-}
-
-function stripCaptainsFromDraft(draftObj) {
-  if (!draftObj) return;
-  const { captain1, captain2 } = draftObj;
-  draftObj.pool = (draftObj.pool || []).filter(n => n !== captain1 && n !== captain2);
-  draftObj.available = (draftObj.available || []).filter(n => n !== captain1 && n !== captain2);
-  draftObj.team1 = (draftObj.team1 || []).filter(n => n !== captain2);
-  draftObj.team2 = (draftObj.team2 || []).filter(n => n !== captain1);
-  if (captain1 && !draftObj.team1.includes(captain1)) draftObj.team1.unshift(captain1);
-  if (captain2 && !draftObj.team2.includes(captain2)) draftObj.team2.unshift(captain2);
-}
-
-function populateOnlineCaptains() {
-  const sel1 = $("online-captain1");
-  const sel2 = $("online-captain2");
-  if (!sel1 || !sel2) return;
-  const draft = ensureOnlineDraftState();
-
-  sel1.disabled = !onlineState.isCreator;
-  sel2.disabled = !onlineState.isCreator;
-
-  const current1 = draft.captain1;
-  const current2 = draft.captain2;
-
-  sel1.innerHTML = '<option value="">— не выбран —</option>';
-  sel2.innerHTML = '<option value="">— не выбран —</option>';
-
-  (onlineState.participants || []).forEach(p => {
-    const o1 = document.createElement("option");
-    o1.value = p.id;
-    o1.textContent = p.nickname;
-    sel1.appendChild(o1);
-    const o2 = document.createElement("option");
-    o2.value = p.id;
-    o2.textContent = p.nickname;
-    sel2.appendChild(o2);
-  });
-
-  if (current1) sel1.value = current1;
-  if (current2) sel2.value = current2;
-
-  sel1.onchange = () => handleCaptainSelectChange();
-  sel2.onchange = () => handleCaptainSelectChange();
-}
-
-function updateOnlineCaptainSelectors() {
-  const draft = ensureOnlineDraftState();
-  // если роли уже расставлены в участниках — подтягиваем в драфт
-  const currentParts = onlineState.participants || [];
-  if (!draft.captain1Id) {
-    const p1 = currentParts.find(p => p.role === "captain1");
-    if (p1) {
-      draft.captain1Id = String(p1.id);
-      draft.captain1 = p1.nickname;
-    }
-  }
-  if (!draft.captain2Id) {
-    const p2 = currentParts.find(p => p.role === "captain2");
-    if (p2) {
-      draft.captain2Id = String(p2.id);
-      draft.captain2 = p2.nickname;
-    }
-  }
-  populateOnlineCaptains();
-}
-
-function getParticipantById(id) {
-  return (onlineState.participants || []).find(p => String(p.id) === String(id));
-}
-
-async function handleCaptainSelectChange() {
-  if (!onlineState.isCreator) return;
-  const draft = ensureOnlineDraftState();
-  const sel1 = $("online-captain1");
-  const sel2 = $("online-captain2");
-  const id1 = sel1.value || null;
-  const id2 = sel2.value || null;
-  if (id1 && id2 && id1 === id2) {
-    alert("Капитаны должны быть разными участниками.");
-    sel2.value = "";
-    return;
-  }
-
-  const p1 = id1 ? getParticipantById(id1) : null;
-  const p2 = id2 ? getParticipantById(id2) : null;
-  draft.captain1Id = id1;
-  draft.captain2Id = id2;
-  draft.captain1 = p1 ? p1.nickname : null;
-  draft.captain2 = p2 ? p2.nickname : null;
-
-  // Обновляем роли участников в Supabase
-  try {
-    const supabase = initSupabase();
-    const updates = [];
-    (onlineState.participants || []).forEach(p => {
-      let desired = p.role;
-      if (p.id === Number(id1) || String(p.id) === id1) desired = "captain1";
-      else if (p.id === Number(id2) || String(p.id) === id2) desired = "captain2";
-      else if (p.role === "captain1" || p.role === "captain2") desired = "viewer";
-      if (desired !== p.role) updates.push({ id: p.id, role: desired });
-    });
-    for (const u of updates) {
-      await supabase.from("room_participants").update({ role: u.role }).eq("id", u.id);
-    }
-    // обновляем локальные роли
-    updates.forEach(u => {
-      const ref = getParticipantById(u.id);
-      if (ref) ref.role = u.role;
-      if (onlineState.myParticipantId === u.id) onlineState.myRole = u.role;
-    });
-  } catch (e) {
-    console.warn("Не удалось обновить роли капитанов", e);
-  }
-
-  stripCaptainsFromDraft(draft);
-  renderOnlinePool();
-  saveDraftState(onlineState.room ? onlineState.room.id : null, draft);
-  renderOnlineDraft();
-}
-
-function syncOnlineControlsAccess() {
-  const isCreator = onlineState.isCreator;
-  [
-    "online-map-select",
-    "online-mode-select",
-    "online-ai-strategy-1",
-    "online-ai-strategy-2",
-    "online-pool-all",
-    "online-pool-top20",
-    "online-pool-clear",
-    "online-start-draft"
-  ].forEach(id => {
-    const el = $(id);
-    if (el) el.disabled = !isCreator;
-  });
-  updateOnlineCaptainSelectors();
-}
-
-function updateOfflineModeUI() {
-  const mode = offlineDraft.mode;
-  const humanRow = $("offline-human-side-row");
-  if (mode === "human_vs_ai") {
-    humanRow.classList.remove("hidden");
-  } else {
-    humanRow.classList.add("hidden");
-  }
-}
-
-function renderOfflinePool() {
-  const box = $("offline-pool-list");
-  box.innerHTML = "";
-  // гарантируем, что капитаны не попадают в пул даже если пользователь нажал кнопку раньше
-  offlineDraft.pool = (offlineDraft.pool || []).filter(n => n !== offlineDraft.captain1 && n !== offlineDraft.captain2);
-  const poolSet = new Set(offlineDraft.pool);
-  players.forEach(p => {
-    const isCaptain = p.name === offlineDraft.captain1 || p.name === offlineDraft.captain2;
-    const row = document.createElement("div");
-    row.className = "player-row" + (poolSet.has(p.name) ? " selected" : "") + (isCaptain ? " disabled" : "");
-    row.addEventListener("click", () => {
-      // капитаны не могут быть в пуле
-      if (isCaptain) return;
-      if (poolSet.has(p.name)) {
-        offlineDraft.pool = offlineDraft.pool.filter(n => n !== p.name);
-      } else {
-        offlineDraft.pool.push(p.name);
-      }
-      renderOfflinePool();
-    });
-    const tierClass = "player-tier-" + (p.tier || "D");
-    row.innerHTML = `
-      <div>
-        <span class="player-name ${tierClass}">${p.name}</span>
-        <span class="player-info">[${p.tier || "D"}] MMR: ${round(p.mmr)}, DPM: ${round(p.dpm)}</span>
-      </div>
-    `;
-    box.appendChild(row);
-  });
-
-}
-
-function startOfflineDraft() {
-  const errBox = $("offline-error");
-  errBox.textContent = "";
-  if (!validateOfflineCaptains(errBox)) return;
-
-  // В пуле должны быть хотя бы 8 игроков (по 4 на докомплектование к капитанам)
-  if (!offlineDraft.pool || offlineDraft.pool.length < 8) {
-    errBox.textContent = "Нужно выбрать минимум 8 игроков в пул (по 4 на каждую команду).";
-    return;
-  }
-
-  stripCaptainsFromDraft(offlineDraft);
-  offlineDraft.available = offlineDraft.pool.slice();
-  offlineDraft.team1 = [offlineDraft.captain1];
-  offlineDraft.team2 = [offlineDraft.captain2];
-  offlineDraft.currentPickIndex = 0;
-  offlineDraft.finished = false;
-
-  renderOfflineDraft();
-}
-
-function validateOfflineCaptains(errBox) {
-  const box = errBox || { textContent: "" };
-  if (!offlineDraft.captain1 || !offlineDraft.captain2) {
-    box.textContent = "Нужно выбрать капитанов для Команды 1 и Команды 2 перед стартом драфта.";
-    return false;
-  }
-  if (offlineDraft.captain1 === offlineDraft.captain2) {
-    box.textContent = "Капитаны двух команд не могут совпадать.";
-    return false;
-  }
-  return true;
-}
-
-function getOfflineStrategyForSide(side) {
-  if (side === "team1") return offlineDraft.strategy1 || "balanced";
-  return offlineDraft.strategy2 || "balanced";
-}
-
-function getOnlineStrategyForSide(side) {
-  const d = ensureOnlineDraftState();
-  if (side === "team1") return d.aiStrategy1 || "balanced";
-  return d.aiStrategy2 || "balanced";
-}
-
-function renderOfflineDraft() {
-  const team1El = $("offline-team1");
-  const team2El = $("offline-team2");
-  const availEl = $("offline-available");
-  const picksEl = $("offline-pick-order");
-  const suggEl = $("offline-suggestions");
-  const finishEl = $("offline-finish");
-  const pickStatusEl = $("offline-pick-status");
-  const t1CountEl = $("offline-team1-count");
-  const t2CountEl = $("offline-team2-count");
-
-  team1El.innerHTML = "";
-  offlineDraft.team1.forEach(name => {
-    const li = document.createElement("li");
-    const p = players.find(pp => pp.name === name);
-    li.textContent = p ? `${p.name} [${p.tier}]` : name;
-    team1El.appendChild(li);
-  });
-
-  team2El.innerHTML = "";
-  offlineDraft.team2.forEach(name => {
-    const li = document.createElement("li");
-    const p = players.find(pp => pp.name === name);
-    li.textContent = p ? `${p.name} [${p.tier}]` : name;
-    team2El.appendChild(li);
-  });
-
-  if (t1CountEl) t1CountEl.textContent = `(${offlineDraft.team1.length}/5)`;
-  if (t2CountEl) t2CountEl.textContent = `(${offlineDraft.team2.length}/5)`;
-
-  picksEl.innerHTML = "";
-  DRAFT_ORDER.forEach((step, idx) => {
-    const chip = document.createElement("div");
-    chip.className = "pick-chip";
-    if (idx === offlineDraft.currentPickIndex) chip.classList.add("current");
-    if (step.team === "team1") chip.classList.add("team1");
-    if (step.team === "team2") chip.classList.add("team2");
-    chip.textContent = `Пик ${step.pick}: Капитан ${step.captain === "cap1" ? "1" : "2"}`;
-    picksEl.appendChild(chip);
-  });
-
-  const picksDone = Math.min(offlineDraft.currentPickIndex, DRAFT_ORDER.length);
-  const picksLeft = Math.max(0, DRAFT_ORDER.length - picksDone);
-  if (pickStatusEl) {
-    const currentStep = DRAFT_ORDER[offlineDraft.currentPickIndex];
-    if (!currentStep) {
-      pickStatusEl.textContent = "Драфт завершён";
-    } else {
-      pickStatusEl.textContent = `Текущий ход: Команда ${currentStep.team === "team1" ? "1" : "2"} · Пик ${picksDone + 1}/8 · Осталось: ${picksLeft}`;
-    }
-  }
-
-  availEl.innerHTML = "";
-  const availablePlayers = offlineDraft.available
-    .filter(n => n !== offlineDraft.captain1 && n !== offlineDraft.captain2)
-    .map(name => players.find(p => p.name === name))
-    .filter(Boolean)
-    .sort((a,b) => (b.mmr||0)-(a.mmr||0));
-
-  let suggestionsHtml = "";
-  const step = DRAFT_ORDER[offlineDraft.currentPickIndex];
-  if (!step) {
-    offlineDraft.finished = true;
-    availEl.innerHTML = "<div class='hint'>Все пики распределены.</div>";
-    suggEl.innerHTML = "<div class='hint'>Драфт завершён. Экспортируй состав ниже.</div>";
-    if (finishEl) {
-      finishEl.classList.remove("hidden");
-      finishEl.innerHTML = "<strong>Драфт завершён.</strong> Капитан + 4 игрока у каждой команды подобраны.";
-    }
-    return;
-  }
-
-  if (finishEl) finishEl.classList.add("hidden");
-  const side = step.team;
-  const isHumanTurn = offlineDraft.mode === "manual"
-    || (offlineDraft.mode === "human_vs_ai" && offlineDraft.humanSide === side);
-  const strategy = getOfflineStrategyForSide(side);
-  const context = {
-    team1: offlineDraft.team1,
-    team2: offlineDraft.team2,
-    side,
-    enemySide: side === "team1" ? "team2" : "team1",
-    mode: offlineDraft.mode,
-    strategy
+// MoW2 Draft Project - V15.0 core logic (Offline Only)
+// Требует: index.html, style.css
+// Внешние данные (опционально, если localStorage пуст):
+// - players.json
+// - ai_strategies_local.json
+// - ai_coeffs_local.json
+// - ai_settings.json
+//
+// Важно:
+// - НЕТ карты, НЕТ Supabase, НЕТ онлайн режима.
+// - Всё настраивается через UI и сохраняется в localStorage.
+// - Подсказки: 1 лучший + 2 альтернативы (по умолчанию).
+
+(function () {
+  "use strict";
+
+  // ------------------------------------------------------
+  // --- Константы, версии, списки
+  // ------------------------------------------------------
+
+  const APP_VERSION = "V15.0";
+
+  const LOCAL_STORAGE_KEYS = {
+    LANGUAGE: "mow2_v15_language",
+    PLAYERS: "mow2_v15_players",
+    STRATEGIES: "mow2_v15_strategies",
+    COEFFS: "mow2_v15_coeffs",
+    AI_SETTINGS: "mow2_v15_ai_settings",
+    UI_SETTINGS: "mow2_v15_ui_settings",
+    OFFLINE_DRAFT: "mow2_v15_offline_draft"
   };
 
-  const scored = availablePlayers.map(p => ({
-    player: p,
-    value: calcPlayerValue(p, context)
-  })).sort((a,b) => b.value - a.value);
+  const TIERS = ["S", "A", "B", "C", "D", "F"];
+  const TIER_RANK = { S: 0, A: 1, B: 2, C: 3, D: 4, F: 5 };
 
-  const hints = buildAiHints(scored, context);
-  if (hints && hints.length) {
-    const best = hints[0];
-    const alts = hints.slice(1).map(h => h.name).join(", ");
-    suggestionsHtml = `<div><strong>Подсказка ИИ:</strong> Лучший пик: ${best.name} (${best.mmr})<br/>Альтернативы: ${alts || "—"}<br/><span class='hint small'>Стратегия: ${strategy}</span></div>`;
-  }
-  suggEl.innerHTML = suggestionsHtml;
+  const ROLE_IDS = [
+    "infantry",
+    "motorized_infantry",
+    "assault_infantry",
+    "mechanical",
+    "tanks",
+    "heavy_tanks",
+    "artillery",
+    "at_artillery",
+    "aa_artillery",
+    "spg",
+    "sapper"
+  ];
 
-  // Автопик ИИ, если сейчас его ход
-  if (!offlineDraft.finished && !isHumanTurn && (offlineDraft.mode === "human_vs_ai" || offlineDraft.mode === "ai_vs_ai")) {
-    aiPickOfflineCurrentSide(context, scored);
-    return; // после автопика будет повторный рендер
-  }
-
-  const currentStep = DRAFT_ORDER[offlineDraft.currentPickIndex];
-  availablePlayers.forEach(p => {
-    const row = document.createElement("div");
-    row.className = "player-row";
-    const tierClass = "player-tier-" + (p.tier || "D");
-    row.innerHTML = `
-      <div>
-        <span class="player-name ${tierClass}">${p.name}</span>
-        <span class="player-info">[${p.tier||"D"}] MMR: ${round(p.mmr)}, DPM: ${round(p.dpm)}</span>
-      </div>
-    `;
-    if (currentStep) {
-      const sideTurn = currentStep.team;
-      const isTurnHuman = offlineDraft.mode === "manual"
-        || (offlineDraft.mode === "human_vs_ai" && offlineDraft.humanSide === sideTurn);
-      if (isTurnHuman) {
-        row.addEventListener("click", () => {
-          humanPickOffline(p.name);
-        });
-      } else {
-        row.style.opacity = "0.6";
-      }
-    }
-    availEl.appendChild(row);
-  });
-}
-
-function humanPickOffline(name) {
-  if (offlineDraft.finished) return;
-  const step = DRAFT_ORDER[offlineDraft.currentPickIndex];
-  if (!step) return;
-  const side = step.team;
-  const isHumanTurn = offlineDraft.mode === "manual"
-    || (offlineDraft.mode === "human_vs_ai" && offlineDraft.humanSide === side);
-  if (!isHumanTurn) return;
-
-  if (!offlineDraft.available.includes(name)) return;
-  if (name === offlineDraft.captain1 || name === offlineDraft.captain2) return;
-  if (side === "team1") {
-    offlineDraft.team1.push(name);
-  } else {
-    offlineDraft.team2.push(name);
-  }
-  offlineDraft.available = offlineDraft.available.filter(n => n !== name);
-  offlineDraft.currentPickIndex++;
-  if (offlineDraft.currentPickIndex >= DRAFT_ORDER.length) {
-    offlineDraft.finished = true;
-  }
-  renderOfflineDraft();
-}
-
-function aiPickOfflineCurrentSide(context, scoredList) {
-  if (offlineDraft.finished) return;
-  const step = DRAFT_ORDER[offlineDraft.currentPickIndex];
-  if (!step) return;
-  const side = step.team;
-  const isHumanTurn = offlineDraft.mode === "manual"
-    || (offlineDraft.mode === "human_vs_ai" && offlineDraft.humanSide === side);
-  if (isHumanTurn) return;
-
-  const valid = scoredList.filter(s => offlineDraft.available.includes(s.player.name) && s.player.name !== offlineDraft.captain1 && s.player.name !== offlineDraft.captain2);
-  if (!valid.length) return;
-  const top = valid.slice(0, Math.min(3, valid.length));
-  const choice = pickWithAiPreference(top);
-  const name = choice.player.name;
-  if (side === "team1") offlineDraft.team1.push(name);
-  else offlineDraft.team2.push(name);
-  offlineDraft.available = offlineDraft.available.filter(n => n !== name);
-  offlineDraft.currentPickIndex++;
-  if (offlineDraft.currentPickIndex >= DRAFT_ORDER.length) {
-    offlineDraft.finished = true;
-  }
-  renderOfflineDraft();
-}
-
-function exportOfflineResult() {
-  const map = offlineDraft.map;
-  const t1 = offlineDraft.team1;
-  const t2 = offlineDraft.team2;
-  let text = `Map: ${map}\n\nКоманда 1:\n`;
-  t1.forEach(n => { text += ` - ${n}\n`; });
-  text += `\nКоманда 2:\n`;
-  t2.forEach(n => { text += ` - ${n}\n`; });
-  $("offline-export-output").value = text;
-}
-
-// --- Оценка игрока ИИ ---
-
-function calcPlayerValue(p, ctx) {
-  const mmrScore = (p.mmr || 0) / 100;
-  const dpmScore = (p.dpm || 0) / 5000;
-  const tierMult = tierMultiplier(p.tier || "D") * (aiBehavior?.tierBias || 1);
-  const roles = p.roles || [];
-
-  const enemySide = ctx.enemySide;
-  const enemyTeamNames = enemySide === "team1" ? ctx.team1 : ctx.team2;
-  const enemyRolesCounter = countRolesByNames(enemyTeamNames);
-  const totalEnemy = enemyTeamNames.length;
-
-  let roleWeightScore = 0;
-  const strategy = ctx.strategy || "balanced";
-
-  if (strategy === "max_dpm") {
-    roleWeightScore = 1.0;
-  } else if (strategy === "counter_enemy") {
-    const counterMap = {
-      tanks: ["at_artillery", "spg", "heavy_tanks"],
-      heavy_tanks: ["at_artillery", "spg"],
-      infantry: ["assault_infantry", "motorized_infantry", "sapper"],
-      motorized_infantry: ["at_artillery", "aa_artillery"],
-      assault_infantry: ["aa_artillery", "spg"],
-      artillery: ["motorized_infantry", "assault_infantry", "sapper"],
-      spg: ["at_artillery","heavy_tanks"],
-      aa_artillery: ["air_support"], // на будущее
-      sapper: ["infantry","assault_infantry"]
-    };
-    let bonus = 0;
-    roles.forEach(r => {
-      for (const [enemyRole, counters] of Object.entries(counterMap)) {
-        if (counters.includes(r) && enemyRolesCounter[enemyRole]) {
-          const density = enemyRolesCounter[enemyRole] / Math.max(1,totalEnemy);
-          bonus += 1.0 + density * 2.0;
-        }
-      }
-    });
-    roleWeightScore = 1.0 + bonus;
-  } else {
-    const weights = ROLE_WEIGHTS[strategy] || ROLE_WEIGHTS["balanced"];
-    roles.forEach(r => {
-      const w = weights[r] || 0.8;
-      roleWeightScore += w;
-    });
-    if (!roleWeightScore) roleWeightScore = 1.0;
-  }
-
-  const scores = [];
-  scores.push(mmrScore * 2.0);
-  scores.push(dpmScore * 1.5);
-  scores.push(roleWeightScore * 1.2);
-
-  const base = scores.reduce((a,b)=>a+b, 0);
-  const total = base * tierMult;
-
-  let smallRandom = (Math.random() - 0.5) * 0.3;
-  return total + smallRandom;
-}
-
-
-function buildAiHints(scored, ctx) {
-  const shortlist = scored.slice(0, 6);
-  if (!shortlist.length) return null;
-
-  const needRoles = ctx.side === "team1"
-    ? countRolesByNames(ctx.team1)
-    : countRolesByNames(ctx.team2);
-  const enemyRoles = ctx.side === "team1"
-    ? countRolesByNames(ctx.team2)
-    : countRolesByNames(ctx.team1);
-
-  function sumRoles(counter, keys) {
-    let sum = 0;
-    if (!counter) return 0;
-    keys.forEach(k => {
-      if (counter[k]) sum += counter[k];
-    });
-    return sum;
-  }
-
-  function enemyConclusion(pRoles) {
-    const armorEnemy = sumRoles(enemyRoles, ["tanks", "heavy_tanks", "spg"]);
-    const infEnemy = sumRoles(enemyRoles, ["infantry", "motorized_infantry", "assault_infantry"]);
-    const gunsEnemy = sumRoles(enemyRoles, ["at_artillery", "artillery", "sapper"]);
-    const aaEnemy = sumRoles(enemyRoles, ["aa_artillery"]);
-
-    const hasArmorTools = pRoles.includes("at_artillery") || pRoles.includes("heavy_tanks") || pRoles.includes("tanks") || pRoles.includes("spg");
-    const hasInfTools = pRoles.includes("artillery") || pRoles.includes("spg") || pRoles.includes("assault_infantry") || pRoles.includes("motorized_infantry");
-    const hasGunsTools = pRoles.includes("motorized_infantry") || pRoles.includes("infantry") || pRoles.includes("sapper") || pRoles.includes("assault_infantry");
-    const hasAATools = pRoles.includes("aa_artillery");
-
-    // Враг упорно в броню – наш юнит хорош против танков
-    if (armorEnemy >= 2 && hasArmorTools) {
-      return "особенно полезен против сильной вражеской брони";
-    }
-
-    // Враг сильно в пехоту – берем то, что режет пехоту
-    if (infEnemy >= 3 && hasInfTools) {
-      return "хороший ответ на плотную пехоту противника";
-    }
-
-    // Враг стоит на пушках/укреплениях
-    if (gunsEnemy >= 2 && hasGunsTools) {
-      return "поможет вскрыть вражеские орудия и укрепления";
-    }
-
-    // Враг упор в ПВО
-    if (aaEnemy >= 2 && (hasArmorTools || hasInfTools)) {
-      return "будет давить наземку, несмотря на упор врага в ПВО";
-    }
-
-    // Смешанный состав врага
-    if (armorEnemy + infEnemy >= 4) {
-      return "универсальное усиление против сбалансированного состава врага";
-    }
-
-    return "";
-  }
-
-  const needText = (p) => {
-    const roles = p.roles || [];
-    const hasCoverage = roles.find(r => enemyRoles[r]);
-    const lack = roles.find(r => !needRoles[r]);
-
-    if (ctx.strategy === "counter_enemy" && hasCoverage) {
-      const concl = enemyConclusion(roles);
-      return concl ? "контрит вражеские роли, " + concl : "контрит вражеские роли";
-    }
-    if (lack) {
-      const concl = enemyConclusion(roles);
-      return concl ? "закрывает пустую роль, " + concl : "закрывает пустую роль";
-    }
-    if (roles.includes("heavy_tanks") || roles.includes("tanks")) {
-      const concl = enemyConclusion(roles);
-      return concl ? "усилит броню, " + concl : "усилит броню";
-    }
-    if (roles.includes("artillery") || roles.includes("spg")) {
-      const concl = enemyConclusion(roles);
-      return concl ? "даст артподдержку, " + concl : "даст артподдержку";
-    }
-    if (roles.includes("aa_artillery")) {
-      const concl = enemyConclusion(roles);
-      return concl ? "усилит ПВО, " + concl : "усилит ПВО";
-    }
-
-    const concl = enemyConclusion(roles);
-    if (concl) return "высокий потенциал, " + concl;
-    return "высокий потенциал";
+  // Default RU labels for roles. EN labels come from i18n.
+  const ROLE_LABELS_RU = {
+    infantry: "Пехота",
+    motorized_infantry: "Мотопехота",
+    assault_infantry: "Штурмовая пехота",
+    mechanical: "Механка",
+    tanks: "Танки",
+    heavy_tanks: "Тяжёлые танки",
+    artillery: "Артиллерия",
+    at_artillery: "ПТО",
+    aa_artillery: "ПВО",
+    spg: "САУ",
+    sapper: "Сапёры"
   };
 
-  const picks = shortlist.slice(0, 3).map(s => ({
-    name: s.player.name,
-    tier: s.player.tier,
-    mmr: round(s.player.mmr),
-    dpm: round(s.player.dpm),
-    reason: needText(s.player)
-  }));
-  return picks;
-}
+  // Draft order is fixed: 8 picks (captains are not picks; teams end up 5 total with captain)
+  const DRAFT_ORDER = [
+    { pick: 1, team: "team1" },
+    { pick: 2, team: "team2" },
+    { pick: 3, team: "team2" },
+    { pick: 4, team: "team1" },
+    { pick: 5, team: "team1" },
+    { pick: 6, team: "team2" },
+    { pick: 7, team: "team1" },
+    { pick: 8, team: "team2" }
+  ];
 
-// Выбор из топ-3 с вероятностью альтернативы
-function pickWithAiPreference(topList) {
-  if (!topList || !topList.length) return null;
-  const altChance = Math.min(Math.max(aiBehavior?.altPickChance || 0, 0), 1);
-  if (topList.length > 1 && Math.random() < altChance) {
-    const altIndex = Math.min(topList.length - 1, 2);
-    return topList[Math.floor(Math.random() * (altIndex + 1))];
+  // ------------------------------------------------------
+  // --- Вспомогательные функции
+  // ------------------------------------------------------
+
+  function $(id) {
+    return document.getElementById(id);
   }
-  return topList[0];
-}
 
-function countRolesByNames(names) {
-  const counter = {};
-  names.forEach(n => {
-    const p = players.find(pp => pp.name === n);
-    if (!p) return;
-    (p.roles || []).forEach(r => {
-      counter[r] = (counter[r] || 0) + 1;
-    });
-  });
-  return counter;
-}
-
-// --- Игроки и статистика экран ---
-
-function initPlayersScreen() {
-  const srcSel = $("players-source");
-  const nameFilter = $("players-filter-name");
-  const tierFilter = $("players-filter-tier");
-  const exportBtn = $("players-export-local");
-  const importInput = $("players-import-local");
-
-  srcSel.value = activeDataset;
-  if (activeDataset === "global" && !playersGlobal.length) {
-    activeDataset = "local";
-    srcSel.value = "local";
-    applyDatasetSource();
+  function setText(el, text) {
+    if (!el) return;
+    el.textContent = text != null ? String(text) : "";
   }
-  srcSel.addEventListener("change", () => {
-    const val = srcSel.value;
-    if (val === "global") {
-      activeDataset = "global";
-      try { localStorage.setItem("mow2_dataset_source", activeDataset); } catch (e) {}
-      if (!playersGlobal.length) {
-        loadPlayersGlobal(true);
-      } else {
-        applyDatasetSource();
-      }
-    } else {
-      activeDataset = "local";
-      applyDatasetSource();
+
+  function safeParseJSON(str, fallback) {
+    try {
+      return JSON.parse(str);
+    } catch (err) {
+      console.error("JSON parse error:", err);
+      return fallback;
     }
-    populateOfflineCaptains();
-    populateOnlineCaptains();
-    renderPlayersList();
-    renderMenuSummary();
-  });
-
-  const strategySourceSel = $("players-strategy-source");
-  if (strategySourceSel) {
-    strategySourceSel.value = activeStrategySource;
-    strategySourceSel.addEventListener("change", () => {
-      activeStrategySource = strategySourceSel.value;
-      localStorage.setItem("mow2_strategy_source", activeStrategySource);
-      applyStrategySource();
-      const altChanceInput = $("strategies-alt-chance");
-      const tierBiasInput = $("strategies-tier-bias");
-      if (altChanceInput) altChanceInput.value = aiBehavior.altPickChance;
-      if (tierBiasInput) tierBiasInput.value = aiBehavior.tierBias;
-    });
   }
 
-  nameFilter.addEventListener("input", renderPlayersList);
-  tierFilter.addEventListener("change", renderPlayersList);
+  function clamp(n, min, max) {
+    return Math.max(min, Math.min(max, n));
+  }
 
-  exportBtn.addEventListener("click", () => {
-    const dataStr = JSON.stringify(playersLocal, null, 2);
-    const blob = new Blob([dataStr], { type: "application/json" });
+  function deepClone(obj) {
+    return JSON.parse(JSON.stringify(obj));
+  }
+
+  function downloadJSON(obj, filename) {
+    const jsonStr = JSON.stringify(obj, null, 2);
+    const blob = new Blob([jsonStr], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "mow2_players_local.json";
+    a.download = filename;
+    document.body.appendChild(a);
     a.click();
+    a.remove();
     URL.revokeObjectURL(url);
-  });
+  }
 
-  importInput.addEventListener("change", (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const data = JSON.parse(ev.target.result);
-        playersLocal = normalizePlayers(data);
-        if (activeDataset === "local") players = playersLocal;
-        savePlayersLocal();
-        renderPlayersList();
-        renderMenuSummary();
-      } catch (err) {
-        alert("Ошибка при разборе JSON локальной базы.");
-        console.error(err);
-      }
-    };
-    reader.readAsText(file);
-  });
-
-  const stratEditor = $("strategies-editor");
-  const stratLoadBtn = $("strategies-load-current");
-  const stratSaveLocal = $("strategies-save-local");
-  const stratImport = $("strategies-import-file");
-  const stratExport = $("strategies-export-file");
-  const altChanceInput = $("strategies-alt-chance");
-  const tierBiasInput = $("strategies-tier-bias");
-  if (stratEditor && stratLoadBtn && stratSaveLocal && stratImport && stratExport) {
-    if (altChanceInput) altChanceInput.value = aiBehavior.altPickChance;
-    if (tierBiasInput) tierBiasInput.value = aiBehavior.tierBias;
-    stratLoadBtn.addEventListener("click", () => {
-      stratEditor.value = JSON.stringify({ weights: ROLE_WEIGHTS, meta: aiBehavior }, null, 2);
-      if (altChanceInput) altChanceInput.value = aiBehavior.altPickChance;
-      if (tierBiasInput) tierBiasInput.value = aiBehavior.tierBias;
-    });
-    stratSaveLocal.addEventListener("click", () => {
-      try {
-        const parsed = JSON.parse(stratEditor.value || "{}");
-        roleWeightsLocal = parsed.weights || parsed;
-        aiBehaviorLocal = parsed.meta ? { ...aiBehavior, ...parsed.meta } : aiBehaviorLocal;
-        if (altChanceInput && altChanceInput.value !== "") {
-          aiBehaviorLocal.altPickChance = Math.max(0, Math.min(1, parseFloat(altChanceInput.value)));
-        }
-        if (tierBiasInput && tierBiasInput.value !== "") {
-          aiBehaviorLocal.tierBias = Math.max(0, parseFloat(tierBiasInput.value));
-        }
-        saveStrategiesLocal();
-        activeStrategySource = "local";
-        localStorage.setItem("mow2_strategy_source", activeStrategySource);
-        applyStrategySource();
-        alert("Стратегии сохранены локально и активированы.");
-      } catch (e) {
-        alert("Не удалось сохранить: проверь JSON.");
-      }
-    });
-    stratImport.addEventListener("change", (ev) => {
-      const file = ev.target.files && ev.target.files[0];
-      if (!file) return;
+  function readFileAsText(file) {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => {
-        stratEditor.value = reader.result;
-      };
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(reader.error || new Error("FileReader error"));
       reader.readAsText(file);
     });
-    stratExport.addEventListener("click", () => {
-      const dataStr = stratEditor.value || JSON.stringify({ weights: ROLE_WEIGHTS, meta: aiBehavior }, null, 2);
-      const blob = new Blob([dataStr], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "mow2_strategies.json";
-      a.click();
-      URL.revokeObjectURL(url);
+  }
+
+  function readFileAsDataURL(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(reader.error || new Error("FileReader error"));
+      reader.readAsDataURL(file);
     });
   }
 
-  renderPlayersList();
-}
-
-function renderPlayersList() {
-  const listEl = $("players-list");
-  const panel = $("player-edit-panel");
-  listEl.innerHTML = "";
-  panel.innerHTML = "<div class='hint'>Выбери игрока, чтобы посмотреть или отредактировать его статистику.</div>";
-
-  const nameFilterVal = ($("players-filter-name").value || "").toLowerCase();
-  const tierFilterVal = $("players-filter-tier").value || "";
-
-  const src = players || [];
-  const filtered = src.filter(p => {
-    if (nameFilterVal && !p.name.toLowerCase().includes(nameFilterVal)) return false;
-    if (tierFilterVal && (p.tier || "D") !== tierFilterVal) return false;
-    return true;
-  }).sort((a,b) => (b.mmr||0)-(a.mmr||0));
-
-  filtered.forEach(p => {
-    const row = document.createElement("div");
-    const tierClass = "player-tier-" + (p.tier || "D");
-    row.className = "player-row";
-    row.innerHTML = `
-      <div>
-        <span class="player-name ${tierClass}">${p.name}</span>
-        <span class="player-info">[${p.tier||"D"}] MMR: ${round(p.mmr)}, DPM: ${round(p.dpm)}</span>
-      </div>
-    `;
-    row.addEventListener("click", () => {
-      renderPlayerEdit(p);
-      document.querySelectorAll("#players-list .player-row").forEach(r => r.classList.remove("selected"));
-      row.classList.add("selected");
-    });
-    listEl.appendChild(row);
-  });
-}
-
-function renderPlayerEdit(p) {
-  const panel = $("player-edit-panel");
-  const isGlobal = activeDataset === "global";
-  const isAdmin = onlineState.isAdmin;
-
-  if (isGlobal && !isAdmin) {
-    panel.innerHTML = `
-      <h3>${p.name}</h3>
-      <div class="hint">Глобальная база доступна только для просмотра. Для редактирования нужен админ-пароль.</div>
-      <p>Tier: <strong>${p.tier||"D"}</strong></p>
-      <p>MMR: <strong>${round(p.mmr)}</strong></p>
-      <p>DPM: <strong>${round(p.dpm)}</strong></p>
-      <p>Роли: <strong>${(p.roles||[]).join(", ") || "—"}</strong></p>
-    `;
-    return;
+  function isTier(t) {
+    return TIERS.indexOf(t) !== -1;
   }
 
-  panel.innerHTML = `
-    <h3>Редактирование игрока</h3>
-    <div class="form-row">
-      <label>Имя</label>
-      <input type="text" id="edit-name" value="${p.name}" />
-    </div>
-    <div class="form-row">
-      <label>Tier</label>
-      <select id="edit-tier">
-        <option value="S">S</option>
-        <option value="A">A</option>
-        <option value="B">B</option>
-        <option value="C">C</option>
-        <option value="D">D</option>
-        <option value="F">F</option>
-      </select>
-    </div>
-    <div class="form-row">
-      <label>MMR</label>
-      <input type="text" id="edit-mmr" value="${round(p.mmr)}" />
-    </div>
-    <div class="form-row">
-      <label>DPM (средний урон)</label>
-      <input type="text" id="edit-dpm" value="${round(p.dpm)}" />
-    </div>
-    <div class="form-row">
-      <label>Роли</label>
-      <div id="edit-roles-box" class="role-grid"></div>
-      <div class="hint small">Выбери все роли, на которых игрок уверенно играет.</div>
-    </div>
-    <button id="edit-save">Сохранить изменения</button>
-  `;
-  $("edit-tier").value = p.tier || "D";
+  function tierRank(tier) {
+    return TIER_RANK[tier] != null ? TIER_RANK[tier] : 999;
+  }
 
-  const roleBox = $("edit-roles-box");
-  ROLE_IDS.forEach(r => {
-    const label = document.createElement("label");
-    label.className = "role-check";
-    const input = document.createElement("input");
-    input.type = "checkbox";
-    input.value = r;
-    input.checked = (p.roles || []).includes(r);
-    label.appendChild(input);
-    label.appendChild(document.createTextNode(" " + r));
-    roleBox.appendChild(label);
-  });
+  function comparePlayersPower(a, b) {
+    // Higher tier first, then higher MMR.
+    const ta = tierRank(a.tier);
+    const tb = tierRank(b.tier);
+    if (ta !== tb) return ta - tb;
+    return (b.mmr || 0) - (a.mmr || 0);
+  }
 
-  $("edit-save").addEventListener("click", () => {
-    p.name = $("edit-name").value.trim() || p.name;
-    p.tier = $("edit-tier").value || "D";
-    const mmrVal = parseFloat($("edit-mmr").value.replace(",", "."));
-    const dpmVal = parseFloat($("edit-dpm").value.replace(",", "."));
-    if (!isNaN(mmrVal)) p.mmr = mmrVal;
-    if (!isNaN(dpmVal)) p.dpm = dpmVal;
-    const newRoles = [];
-    document.querySelectorAll("#edit-roles-box input[type=checkbox]").forEach(cb => {
-      if (cb.checked) newRoles.push(cb.value);
+  function uniqueArray(arr) {
+    const seen = {};
+    const out = [];
+    (arr || []).forEach((x) => {
+      const k = String(x);
+      if (!seen[k]) {
+        seen[k] = true;
+        out.push(x);
+      }
     });
-    p.roles = newRoles;
+    return out;
+  }
 
-    if (activeDataset === "local") {
-      // обновляем playersLocal (по ссылке это те же объекты)
-      savePlayersLocal();
+  // ------------------------------------------------------
+  // --- i18nModule: RU/EN
+  // ------------------------------------------------------
+
+  const i18nModule = (function () {
+    const dict = {
+      ru: {
+        "header.language": "Язык",
+        "common.backToMenu": "Назад в меню",
+        "common.save": "Сохранить",
+        "common.delete": "Удалить",
+        "common.exportJson": "Экспорт JSON",
+        "common.importJson": "Импорт JSON",
+        "common.name": "Имя",
+        "common.tier": "Tier",
+        "common.mmr": "MMR",
+        "common.dpm": "DPM",
+        "common.roles": "Роли",
+        "common.inPool": "В пуле",
+        "common.role": "Роль",
+        "common.weight": "Вес",
+        "common.yes": "Да",
+        "common.no": "Нет",
+
+        "menu.title": "Главное меню",
+        "menu.welcomeTitle": "MoW2 Draft Project — V15.0",
+        "menu.welcomeSubtitle": "Оффлайн режим. Все настройки меняются через интерфейс и сохраняются локально.",
+        "menu.imageHint": "Здесь можно загрузить рофляную картинку в разделе «Внешний вид».",
+        "menu.offlineDraft": "Оффлайн драфт",
+        "menu.offlineDraftDesc": "Human vs AI / AI vs AI / Manual",
+        "menu.players": "Игроки и статистика",
+        "menu.playersDesc": "Редактор базы игроков",
+        "menu.strategies": "Стратегии",
+        "menu.strategiesDesc": "Планы состава и веса ролей",
+        "menu.coeffs": "Базовые коэффициенты",
+        "menu.coeffsDesc": "Tier-множители и шанс альтернативного пика",
+        "menu.aiSettings": "AI-настройки",
+        "menu.aiSettingsDesc": "Вся математика и планирование",
+        "menu.importExport": "Импорт / Экспорт",
+        "menu.importExportDesc": "Отдельно и Bundle",
+        "menu.appearance": "Внешний вид",
+        "menu.appearanceDesc": "Фон, лого, картинка меню",
+
+        "offline.title": "Оффлайн драфт",
+        "offline.matchSettings": "Настройки матча",
+        "offline.modeLabel": "Режим",
+        "offline.humanSideLabel": "Сторона человека",
+        "offline.team1": "Команда 1",
+        "offline.team2": "Команда 2",
+        "offline.strategyTeam1Label": "Стратегия Team1",
+        "offline.strategyTeam2Label": "Стратегия Team2",
+        "offline.resetDraft": "Сбросить драфт",
+        "offline.resetAll": "Сбросить всё (пул+капитаны)",
+        "offline.showPlanning": "Показывать дальний план",
+        "offline.captainsTitle": "Капитаны",
+        "offline.captain1Search": "Поиск капитана 1",
+        "offline.captain1Select": "Капитан команды 1",
+        "offline.captain2Search": "Поиск капитана 2",
+        "offline.captain2Select": "Капитан команды 2",
+        "offline.captainsNote": "Капитаны учитываются в составе и в логике стратегий, но не выбираются как обычные пики.",
+        "offline.poolTitle": "Пул игроков",
+        "offline.poolAll": "Все игроки в пул",
+        "offline.poolTop20": "Топ-20 по MMR",
+        "offline.poolClear": "Очистить пул",
+        "offline.poolNote": "В пул попадают только кандидаты на пики (капитаны не управляются пулом).",
+        "offline.draftStateTitle": "Текущее состояние драфта",
+        "offline.team1Title": "Команда 1",
+        "offline.team2Title": "Команда 2",
+        "offline.captain": "Капитан:",
+        "offline.pickOrder": "Порядок пиков",
+        "offline.availablePlayers": "Доступные игроки",
+        "offline.hintsTitle": "Подсказки и планирование",
+        "offline.hintsTeam1": "Подсказки Team1",
+        "offline.hintsTeam2": "Подсказки Team2",
+        "offline.exportTitle": "Экспорт результата",
+        "offline.finishDraft": "Завершить драфт",
+        "offline.copyExport": "Скопировать в буфер",
+
+        "players.title": "Игроки и статистика",
+        "players.listTitle": "Список игроков",
+        "players.filterName": "Фильтр по имени",
+        "players.filterTier": "Фильтр по Tier",
+        "players.allTiers": "Все",
+        "players.addNew": "Добавить нового игрока",
+        "players.editTitle": "Редактирование игрока",
+        "players.rolesTitle": "Роли игрока",
+
+        "strategies.title": "Стратегии",
+        "strategies.selectTitle": "Выбор стратегии",
+        "strategies.current": "Текущая стратегия",
+        "strategies.add": "Добавить стратегию",
+        "strategies.delete": "Удалить стратегию",
+        "strategies.nameRu": "Название (RU)",
+        "strategies.nameEn": "Название (EN)",
+        "strategies.descRu": "Описание (RU)",
+        "strategies.descEn": "Описание (EN)",
+        "strategies.compositionTargets": "Цели состава (минимумы на команду из 5)",
+        "strategies.targetInfantry": "Пехота",
+        "strategies.targetTanks": "Танки",
+        "strategies.targetMechanical": "Механка",
+        "strategies.targetSupport": "Поддержка",
+        "strategies.roleWeightsTitle": "Веса ролей",
+        "strategies.jsonTitle": "JSON (для быстрой правки)",
+        "strategies.applyJson": "Обновить из JSON",
+
+        "coeffs.title": "Базовые коэффициенты",
+        "coeffs.tierMultipliers": "Tier множители",
+        "coeffs.altPickChance": "Вероятность альтернативного пика",
+        "coeffs.tierBias": "TierBias (общий множитель)",
+
+        "aiSettings.title": "AI-настройки",
+        "aiSettings.formulaTitle": "Формулы и веса",
+        "aiSettings.wMmr": "Вес MMR",
+        "aiSettings.wDpm": "Вес DPM",
+        "aiSettings.wRole": "Вес ролей",
+        "aiSettings.wComp": "Вес состава",
+        "aiSettings.wUniversal": "Вес универсальности",
+        "aiSettings.wCounter": "Вес контров",
+        "aiSettings.penaltiesMult": "Множитель штрафов",
+        "aiSettings.noiseAmp": "Шум (амплитуда)",
+        "aiSettings.tierDominance": "Доминирование Tier",
+        "aiSettings.tierDomEnabled": "Включено",
+        "aiSettings.tierDownPenalty": "Штраф за выбор ниже Tier, если есть выше",
+        "aiSettings.mmrSettings": "MMR настройки",
+        "aiSettings.mmrMin": "MMR min",
+        "aiSettings.mmrMax": "MMR max",
+        "aiSettings.mmrGapThreshold": "Порог разницы MMR",
+        "aiSettings.mmrGapBonus": "Бонус за каждые +100 MMR",
+        "aiSettings.universalBlock": "Универсальность",
+        "aiSettings.universalMinRoles": "Универсал: минимум ролей",
+        "aiSettings.universalBonus": "Бонус универсалу",
+        "aiSettings.dontSpendUniversal": "Не тратить универсала на поддержку",
+        "aiSettings.universalSupportPenalty": "Штраф универсалу за «support-слот»",
+        "aiSettings.planningTitle": "Планирование, soft-caps, подсказки",
+        "aiSettings.planning": "Планирование",
+        "aiSettings.planningEnabled": "Включено",
+        "aiSettings.candidateTopK": "CandidateTopK",
+        "aiSettings.enemyModel": "Модель врага",
+        "aiSettings.enemyPowerFirst": "Power-first",
+        "aiSettings.enemySameStrategy": "Same as selected",
+        "aiSettings.softCapsTitle": "Soft-caps",
+        "aiSettings.supportOnlyMax": "Support-only maxPreferred",
+        "aiSettings.supportOnlyPenalty2": "Штраф за 2-го support-only",
+        "aiSettings.supportOnlyPenalty3": "Штраф за 3+ support-only",
+        "aiSettings.supportTotalMax": "Support total maxPreferred",
+        "aiSettings.supportTotalPenalty": "Штраф за каждый лишний support",
+        "aiSettings.hintsTitle": "Подсказки",
+        "aiSettings.altsCount": "Количество альтернатив",
+        "aiSettings.showOpponentHints": "Показывать подсказки противника в Human vs AI",
+        "aiSettings.jsonTitle": "JSON (полный объект)",
+        "aiSettings.applyJson": "Обновить из JSON",
+
+        "importExport.title": "Импорт / Экспорт",
+        "importExport.exportTitle": "Экспорт",
+        "importExport.exportPlayers": "Экспорт игроков",
+        "importExport.exportStrategies": "Экспорт стратегий",
+        "importExport.exportCoeffs": "Экспорт коэффициентов",
+        "importExport.exportAiSettings": "Экспорт AI-настроек",
+        "importExport.bundleTitle": "Bundle",
+        "importExport.exportBundle": "Экспорт Bundle",
+        "importExport.importBundle": "Импорт Bundle",
+        "importExport.importTitle": "Импорт (по отдельности)",
+        "importExport.importPlayers": "Импорт игроков",
+        "importExport.importStrategies": "Импорт стратегий",
+        "importExport.importCoeffs": "Импорт коэффициентов",
+        "importExport.importAiSettings": "Импорт AI-настроек",
+        "importExport.note": "Все импорты записываются в localStorage и сразу применяются ко всем экранам.",
+
+        "appearance.title": "Внешний вид",
+        "appearance.background": "Фон",
+        "appearance.uploadBackground": "Загрузить фон (png/jpg/webp)",
+        "appearance.resetBackground": "Сбросить фон",
+        "appearance.logo": "Лого",
+        "appearance.uploadLogo": "Загрузить лого",
+        "appearance.resetLogo": "Сбросить лого",
+        "appearance.menuImage": "Картинка меню",
+        "appearance.uploadMenuImage": "Загрузить картинку",
+        "appearance.resetMenuImage": "Сбросить картинку",
+        "appearance.accentColor": "Акцентный цвет",
+        "appearance.preview": "Превью",
+        "appearance.previewHeader": "Шапка",
+        "appearance.previewCards": "Карточки",
+        "appearance.note": "Фон/лого/картинка меню сохраняются в localStorage и попадают в Bundle."
+      },
+      en: {
+        "header.language": "Language",
+        "common.backToMenu": "Back to menu",
+        "common.save": "Save",
+        "common.delete": "Delete",
+        "common.exportJson": "Export JSON",
+        "common.importJson": "Import JSON",
+        "common.name": "Name",
+        "common.tier": "Tier",
+        "common.mmr": "MMR",
+        "common.dpm": "DPM",
+        "common.roles": "Roles",
+        "common.inPool": "In pool",
+        "common.role": "Role",
+        "common.weight": "Weight",
+        "common.yes": "Yes",
+        "common.no": "No",
+
+        "menu.title": "Main Menu",
+        "menu.welcomeTitle": "MoW2 Draft Project — V15.0",
+        "menu.welcomeSubtitle": "Offline mode. All settings are editable via UI and stored locally.",
+        "menu.imageHint": "You can upload a funny image in the “Appearance” section.",
+        "menu.offlineDraft": "Offline Draft",
+        "menu.offlineDraftDesc": "Human vs AI / AI vs AI / Manual",
+        "menu.players": "Players & Stats",
+        "menu.playersDesc": "Local players database editor",
+        "menu.strategies": "Strategies",
+        "menu.strategiesDesc": "Composition plans and role weights",
+        "menu.coeffs": "Base Coefficients",
+        "menu.coeffsDesc": "Tier multipliers and alternative pick chance",
+        "menu.aiSettings": "AI Settings",
+        "menu.aiSettingsDesc": "All math and planning controls",
+        "menu.importExport": "Import / Export",
+        "menu.importExportDesc": "Separate files and Bundle",
+        "menu.appearance": "Appearance",
+        "menu.appearanceDesc": "Background, logo, menu image",
+
+        "offline.title": "Offline Draft",
+        "offline.matchSettings": "Match Settings",
+        "offline.modeLabel": "Mode",
+        "offline.humanSideLabel": "Human side",
+        "offline.team1": "Team 1",
+        "offline.team2": "Team 2",
+        "offline.strategyTeam1Label": "Strategy Team1",
+        "offline.strategyTeam2Label": "Strategy Team2",
+        "offline.resetDraft": "Reset draft",
+        "offline.resetAll": "Reset all (pool + captains)",
+        "offline.showPlanning": "Show long plan",
+        "offline.captainsTitle": "Captains",
+        "offline.captain1Search": "Captain 1 search",
+        "offline.captain1Select": "Captain Team 1",
+        "offline.captain2Search": "Captain 2 search",
+        "offline.captain2Select": "Captain Team 2",
+        "offline.captainsNote": "Captains are part of the roster and are considered by the AI, but are not drafted as picks.",
+        "offline.poolTitle": "Player Pool",
+        "offline.poolAll": "All players into pool",
+        "offline.poolTop20": "Top-20 by MMR",
+        "offline.poolClear": "Clear pool",
+        "offline.poolNote": "Only in-pool players are draft candidates (captains are not controlled by the pool).",
+        "offline.draftStateTitle": "Draft State",
+        "offline.team1Title": "Team 1",
+        "offline.team2Title": "Team 2",
+        "offline.captain": "Captain:",
+        "offline.pickOrder": "Pick Order",
+        "offline.availablePlayers": "Available Players",
+        "offline.hintsTitle": "Hints & Planning",
+        "offline.hintsTeam1": "Hints Team1",
+        "offline.hintsTeam2": "Hints Team2",
+        "offline.exportTitle": "Export Result",
+        "offline.finishDraft": "Finish draft",
+        "offline.copyExport": "Copy to clipboard",
+
+        "players.title": "Players & Stats",
+        "players.listTitle": "Players List",
+        "players.filterName": "Name filter",
+        "players.filterTier": "Tier filter",
+        "players.allTiers": "All",
+        "players.addNew": "Add new player",
+        "players.editTitle": "Edit Player",
+        "players.rolesTitle": "Player roles",
+
+        "strategies.title": "Strategies",
+        "strategies.selectTitle": "Select Strategy",
+        "strategies.current": "Current strategy",
+        "strategies.add": "Add strategy",
+        "strategies.delete": "Delete strategy",
+        "strategies.nameRu": "Name (RU)",
+        "strategies.nameEn": "Name (EN)",
+        "strategies.descRu": "Description (RU)",
+        "strategies.descEn": "Description (EN)",
+        "strategies.compositionTargets": "Composition targets (minimums for a team of 5)",
+        "strategies.targetInfantry": "Infantry",
+        "strategies.targetTanks": "Tanks",
+        "strategies.targetMechanical": "Mechanized",
+        "strategies.targetSupport": "Support",
+        "strategies.roleWeightsTitle": "Role Weights",
+        "strategies.jsonTitle": "JSON (quick edit)",
+        "strategies.applyJson": "Apply JSON",
+
+        "coeffs.title": "Base Coefficients",
+        "coeffs.tierMultipliers": "Tier multipliers",
+        "coeffs.altPickChance": "Alternative pick chance",
+        "coeffs.tierBias": "TierBias (global multiplier)",
+
+        "aiSettings.title": "AI Settings",
+        "aiSettings.formulaTitle": "Formula & weights",
+        "aiSettings.wMmr": "MMR weight",
+        "aiSettings.wDpm": "DPM weight",
+        "aiSettings.wRole": "Role preference weight",
+        "aiSettings.wComp": "Composition weight",
+        "aiSettings.wUniversal": "Universality weight",
+        "aiSettings.wCounter": "Counters weight",
+        "aiSettings.penaltiesMult": "Penalties multiplier",
+        "aiSettings.noiseAmp": "Noise amplitude",
+        "aiSettings.tierDominance": "Tier dominance",
+        "aiSettings.tierDomEnabled": "Enabled",
+        "aiSettings.tierDownPenalty": "Penalty for lower Tier if higher exists",
+        "aiSettings.mmrSettings": "MMR settings",
+        "aiSettings.mmrMin": "MMR min",
+        "aiSettings.mmrMax": "MMR max",
+        "aiSettings.mmrGapThreshold": "MMR gap threshold",
+        "aiSettings.mmrGapBonus": "Bonus per +100 MMR",
+        "aiSettings.universalBlock": "Universality",
+        "aiSettings.universalMinRoles": "Universal: min roles",
+        "aiSettings.universalBonus": "Universal bonus",
+        "aiSettings.dontSpendUniversal": "Do not spend universal on support",
+        "aiSettings.universalSupportPenalty": "Universal penalty for support slot",
+        "aiSettings.planningTitle": "Planning, soft-caps, hints",
+        "aiSettings.planning": "Planning",
+        "aiSettings.planningEnabled": "Enabled",
+        "aiSettings.candidateTopK": "CandidateTopK",
+        "aiSettings.enemyModel": "Enemy model",
+        "aiSettings.enemyPowerFirst": "Power-first",
+        "aiSettings.enemySameStrategy": "Same as selected",
+        "aiSettings.softCapsTitle": "Soft-caps",
+        "aiSettings.supportOnlyMax": "Support-only maxPreferred",
+        "aiSettings.supportOnlyPenalty2": "Penalty for 2nd support-only",
+        "aiSettings.supportOnlyPenalty3": "Penalty for 3+ support-only",
+        "aiSettings.supportTotalMax": "Support total maxPreferred",
+        "aiSettings.supportTotalPenalty": "Penalty per extra support",
+        "aiSettings.hintsTitle": "Hints",
+        "aiSettings.altsCount": "Alternatives count",
+        "aiSettings.showOpponentHints": "Show opponent hints in Human vs AI",
+        "aiSettings.jsonTitle": "JSON (full object)",
+        "aiSettings.applyJson": "Apply JSON",
+
+        "importExport.title": "Import / Export",
+        "importExport.exportTitle": "Export",
+        "importExport.exportPlayers": "Export players",
+        "importExport.exportStrategies": "Export strategies",
+        "importExport.exportCoeffs": "Export coefficients",
+        "importExport.exportAiSettings": "Export AI settings",
+        "importExport.bundleTitle": "Bundle",
+        "importExport.exportBundle": "Export Bundle",
+        "importExport.importBundle": "Import Bundle",
+        "importExport.importTitle": "Import (separate files)",
+        "importExport.importPlayers": "Import players",
+        "importExport.importStrategies": "Import strategies",
+        "importExport.importCoeffs": "Import coefficients",
+        "importExport.importAiSettings": "Import AI settings",
+        "importExport.note": "All imports are stored in localStorage and applied immediately.",
+
+        "appearance.title": "Appearance",
+        "appearance.background": "Background",
+        "appearance.uploadBackground": "Upload background (png/jpg/webp)",
+        "appearance.resetBackground": "Reset background",
+        "appearance.logo": "Logo",
+        "appearance.uploadLogo": "Upload logo",
+        "appearance.resetLogo": "Reset logo",
+        "appearance.menuImage": "Menu image",
+        "appearance.uploadMenuImage": "Upload image",
+        "appearance.resetMenuImage": "Reset image",
+        "appearance.accentColor": "Accent color",
+        "appearance.preview": "Preview",
+        "appearance.previewHeader": "Header",
+        "appearance.previewCards": "Cards",
+        "appearance.note": "Background/logo/menu image are stored in localStorage and included in the Bundle."
+      }
+    };
+
+    const roleLabelsEn = {
+      infantry: "Infantry",
+      motorized_infantry: "Motorized Infantry",
+      assault_infantry: "Assault Infantry",
+      mechanical: "Mechanized",
+      tanks: "Tanks",
+      heavy_tanks: "Heavy Tanks",
+      artillery: "Artillery",
+      at_artillery: "AT (Anti-tank)",
+      aa_artillery: "AA (Anti-air)",
+      spg: "SPG",
+      sapper: "Sappers"
+    };
+
+    const reasonTexts = {
+      ru: {
+        TIER_HIGHER: "выше по Tier",
+        MMR_GAP: "выше по MMR (разница {gap})",
+        CLOSES_TARGET: "закрывает цель состава: {cat} ({now}/{target})",
+        PROGRESS: "улучшает состав: {cat} ({now}/{target})",
+        UNIVERSAL: "универсал: ролей {count}",
+        SUPPORT_SPECIALIST: "профильная поддержка (лучше на support-слот)",
+        AVOID_SUPPORT_OVERLOAD: "избегаем перекоса в поддержку",
+        SOFTCAP_SUPPORT_ONLY: "слишком много игроков только под поддержку",
+        COUNTER: "контрит: {detail}",
+        POWER_FIRST: "сильный игрок (Tier/MMR)"
+      },
+      en: {
+        TIER_HIGHER: "higher Tier",
+        MMR_GAP: "higher MMR (gap {gap})",
+        CLOSES_TARGET: "meets composition target: {cat} ({now}/{target})",
+        PROGRESS: "improves composition: {cat} ({now}/{target})",
+        UNIVERSAL: "universal: roles {count}",
+        SUPPORT_SPECIALIST: "support specialist (better for support slot)",
+        AVOID_SUPPORT_OVERLOAD: "avoids support overload",
+        SOFTCAP_SUPPORT_ONLY: "too many support-only specialists",
+        COUNTER: "counters: {detail}",
+        POWER_FIRST: "strong player (Tier/MMR)"
+      }
+    };
+
+    let currentLang = "ru";
+
+    function t(key, params) {
+      const map = dict[currentLang] || dict.ru;
+      let s = map[key] != null ? map[key] : (dict.ru[key] != null ? dict.ru[key] : key);
+      if (params && typeof params === "object") {
+        Object.keys(params).forEach((k) => {
+          s = s.replaceAll("{" + k + "}", String(params[k]));
+        });
+      }
+      return s;
     }
-    renderPlayersList();
-    renderMenuSummary();
-    renderPlayerEdit(p);
-  });
-}
 
-// --- Онлайн комнаты (упрощённо, без полной синхронизации) ---
-
-function initOnlineScreen() {
-  $("online-create-room").addEventListener("click", createOnlineRoom);
-  $("online-join-room").addEventListener("click", joinOnlineRoom);
-  $("online-refresh-rooms").addEventListener("click", refreshOnlineRooms);
-  $("online-delete-room").addEventListener("click", deleteOnlineRoom);
-  $("online-refresh-room").addEventListener("click", refreshOnlineRoom);
-  const refreshStateBtn = $("online-refresh-state");
-  if (refreshStateBtn) refreshStateBtn.addEventListener("click", refreshOnlineRoom);
-  $("online-admin-verify").addEventListener("click", () => {
-    const pwd = ($("online-admin-pass").value || "").trim();
-    if (pwd === onlineState.adminPassword) {
-      onlineState.isAdmin = true;
-      $("online-admin-verify").textContent = "Админ OK";
-      refreshOnlineRooms();
-    } else {
-      onlineState.isAdmin = false;
-      alert("Неверный админ-пароль для удаления комнат.");
+    function roleLabel(roleId) {
+      if (currentLang === "en") {
+        return roleLabelsEn[roleId] || roleId;
+      }
+      return ROLE_LABELS_RU[roleId] || roleId;
     }
-  });
 
-  const mapSel = $("online-map-select");
-  MAPS.forEach(m => {
-    const opt = document.createElement("option");
-    opt.value = m;
-    opt.textContent = m;
-    mapSel.appendChild(opt);
-  });
-
-  const draft = ensureOnlineDraftState();
-  mapSel.value = draft.map;
-  mapSel.addEventListener("change", () => {
-    draft.map = mapSel.value;
-  });
-
-  const strat1Sel = $("online-ai-strategy-1");
-  const strat2Sel = $("online-ai-strategy-2");
-  strat1Sel.value = draft.aiStrategy1;
-  strat2Sel.value = draft.aiStrategy2;
-  strat1Sel.addEventListener("change", () => {
-    draft.aiStrategy1 = strat1Sel.value;
-  });
-  strat2Sel.addEventListener("change", () => {
-    draft.aiStrategy2 = strat2Sel.value;
-  });
-
-  $("online-start-draft").addEventListener("click", startOnlineDraft);
-
-  $("online-pool-all").addEventListener("click", () => {
-    const d = ensureOnlineDraftState();
-    if (!onlineState.isCreator) return;
-    const { captain1, captain2 } = d;
-    onlineState.draft.pool = players
-      .map(p=>p.name)
-      .filter(n => n !== captain1 && n !== captain2);
-    renderOnlinePool();
-  });
-  $("online-pool-top20").addEventListener("click", () => {
-    const d = ensureOnlineDraftState();
-    if (!onlineState.isCreator) return;
-    const sorted = [...players].sort((a,b)=> (b.mmr||0)-(a.mmr||0));
-    const { captain1, captain2 } = d;
-    onlineState.draft.pool = sorted
-      .slice(0,20)
-      .map(p=>p.name)
-      .filter(n => n !== captain1 && n !== captain2);
-    renderOnlinePool();
-  });
-  $("online-pool-clear").addEventListener("click", () => {
-    ensureOnlineDraftState();
-    if (!onlineState.isCreator) return;
-    onlineState.draft.pool = [];
-    renderOnlinePool();
-  });
-
-  populateOnlineCaptains();
-  syncOnlineControlsAccess();
-}
-
-async function createOnlineRoom() {
-  const supabase = initSupabase();
-  const nickname = ($("online-nickname").value || "").trim();
-  if (!nickname) {
-    $("online-create-result").textContent = "Нужно ввести ник перед созданием комнаты.";
-    return;
-  }
-  const roomPassword = $("online-create-password").value || "";
-
-  // Проверка лимита комнат
-  try {
-    const twoWeeksAgo = new Date(Date.now() - 14*24*60*60*1000).toISOString();
-    const { data: rooms, error } = await supabase
-      .from("rooms")
-      .select("id, created_at")
-      .gte("created_at", twoWeeksAgo);
-    if (!error && rooms && rooms.length >= ROOMS_LIMIT) {
-      $("online-create-result").textContent = "Достигнут лимит комнат (50). Удалите старые комнаты через Supabase.";
-      return;
+    function categoryLabel(cat) {
+      // cat: infantry, tanks, mechanical, support
+      if (currentLang === "en") {
+        if (cat === "infantry") return "Infantry";
+        if (cat === "tanks") return "Tanks";
+        if (cat === "mechanical") return "Mechanized";
+        if (cat === "support") return "Support";
+        return cat;
+      }
+      if (cat === "infantry") return "Пехота";
+      if (cat === "tanks") return "Танки";
+      if (cat === "mechanical") return "Механка";
+      if (cat === "support") return "Поддержка";
+      return cat;
     }
-  } catch (e) {
-    console.warn("Room limit check failed", e);
-  }
 
-  const code = generateRoomCode();
-  const { data, error } = await supabase
-    .from("rooms")
-    .insert({
-      code,
-      password: roomPassword || null
-    })
-    .select()
-    .single();
+    function setLanguage(lang) {
+      currentLang = lang === "en" ? "en" : "ru";
+      localStorage.setItem(LOCAL_STORAGE_KEYS.LANGUAGE, currentLang);
+      applyStaticTranslations();
+      document.documentElement.lang = currentLang;
+    }
 
-  if (error) {
-    console.error(error);
-    $("online-create-result").textContent = "Ошибка создания комнаты.";
-    return;
-  }
+    function getLanguage() {
+      return currentLang;
+    }
 
-  const roomId = data.id;
-  onlineState.room = data;
-  onlineState.isCreator = true;
-  onlineState.myRole = "captain1";
-  syncOnlineControlsAccess();
+    function loadLanguage() {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEYS.LANGUAGE);
+      if (saved === "en" || saved === "ru") {
+        currentLang = saved;
+      }
+      document.documentElement.lang = currentLang;
+    }
 
-  const { data: participant, error: pErr } = await supabase
-    .from("room_participants")
-    .insert({
-      room_id: roomId,
-      nickname,
-      role: "captain1"
-    })
-    .select()
-    .single();
-  if (!pErr && participant) {
-    onlineState.myParticipantId = participant.id;
-    onlineState.participants = [participant];
-  }
+    function applyStaticTranslations() {
+      document.querySelectorAll("[data-i18n]").forEach((el) => {
+        const key = el.getAttribute("data-i18n");
+        if (!key) return;
+        el.textContent = t(key);
+      });
+    }
 
-  const draft = ensureOnlineDraftState();
-  const cap1 = participant ? participant.nickname : draft.captain1;
-  const cap2 = draft.captain2;
-  onlineState.draft = {
-    ...getEmptyOnlineDraft(),
-    map: draft.map || MAPS[0],
-    mode: draft.mode || "human_vs_human",
-    aiStrategy1: draft.aiStrategy1 || "balanced",
-    aiStrategy2: draft.aiStrategy2 || "balanced",
-    captain1Id: participant ? String(participant.id) : draft.captain1Id,
-    captain2Id: draft.captain2Id,
-    captain1: cap1,
-    captain2: cap2,
-    pool: players
-      .map(p=>p.name)
-      .filter(n => n !== cap1 && n !== cap2),
-    available: [],
-    team1: cap1 ? [cap1] : [],
-    team2: cap2 ? [cap2] : [],
-    currentPickIndex: 0,
-    finished: false
-  };
+    function reasonToText(reason) {
+      if (!reason || typeof reason !== "object") return "";
+      const code = String(reason.code || "");
+      const params = reason.params || {};
+      const map = reasonTexts[currentLang] || reasonTexts.ru;
+      let template = map[code] || code;
+      Object.keys(params).forEach((k) => {
+        template = template.replaceAll("{" + k + "}", String(params[k]));
+      });
+      return template;
+    }
 
-  $("online-room-code").textContent = code;
-  $("online-my-role").textContent = "Капитан 1";
-  $("online-match-status").textContent = "Ожидание старта";
-  $("online-create-result").textContent = "Комната создана.";
-  $("online-room-section").classList.remove("hidden");
-  $("online-map-select").value = onlineState.draft.map;
-  $("online-mode-select").value = onlineState.draft.mode;
-  $("online-ai-strategy-1").value = onlineState.draft.aiStrategy1;
-  $("online-ai-strategy-2").value = onlineState.draft.aiStrategy2;
-  saveDraftState(roomId, onlineState.draft);
-  renderOnlineParticipants();
-  renderOnlinePool();
-}
+    return {
+      t,
+      roleLabel,
+      categoryLabel,
+      setLanguage,
+      getLanguage,
+      loadLanguage,
+      applyStaticTranslations,
+      reasonToText
+    };
+  })();
 
-function generateRoomCode() {
-  const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-  let s = "";
-  for (let i=0;i<5;i++) {
-    s += chars[Math.floor(Math.random()*chars.length)];
-  }
-  return s;
-}
+  // ------------------------------------------------------
+  // --- dataModule: загрузка, localStorage, дефолты, валидация
+  // ------------------------------------------------------
 
-async function joinOnlineRoom() {
-  const supabase = initSupabase();
-  const nickname = ($("online-nickname").value || "").trim();
-  if (!nickname) {
-    $("online-join-result").textContent = "Нужно ввести ник перед входом в комнату.";
-    return;
-  }
-  const code = ($("online-join-code").value || "").trim().toUpperCase();
-  const password = $("online-join-password").value || "";
+  const dataModule = (function () {
+    const state = {
+      players: [],
+      strategies: null,
+      coeffs: null,
+      aiSettings: null,
+      uiSettings: null
+    };
 
-  const { data: room, error } = await supabase
-    .from("rooms")
-    .select("*")
-    .eq("code", code)
-    .maybeSingle();
-  if (error || !room) {
-    $("online-join-result").textContent = "Комната не найдена.";
-    return;
-  }
-  if (room.password && room.password !== password) {
-    $("online-join-result").textContent = "Неверный пароль комнаты.";
-    return;
-  }
+    const defaultCoeffs = {
+      tier: { S: 10.0, A: 2.0, B: 1.4, C: 1.1, D: 1.0, F: 0.7 },
+      altPickChance: 0.2,
+      tierBias: 1.0
+    };
 
-  onlineState.room = room;
-  onlineState.isCreator = false;
-  onlineState.myRole = "viewer";
-  onlineState.draft = {
-    map: MAPS[0],
-    mode: "human_vs_human",
-    aiStrategy1: "balanced",
-    aiStrategy2: "balanced",
-    captain1: null,
-    captain2: null,
-    pool: [],
-    available: [],
-    team1: [],
-    team2: [],
-    currentPickIndex: 0,
-    finished: false
-  };
-  syncOnlineControlsAccess();
+    const defaultUiSettings = {
+      accentColor: "#7a1f1f",
+      backgroundDataUrl: null,
+      logoDataUrl: null,
+      menuImageDataUrl: null
+    };
 
-  const { data: participant, error: pErr } = await supabase
-    .from("room_participants")
-    .insert({
-      room_id: room.id,
-      nickname,
-      role: "viewer"
-    })
-    .select()
-    .single();
-  if (!pErr && participant) {
-    onlineState.myParticipantId = participant.id;
-  }
+    function validatePlayer(p) {
+      if (!p || typeof p !== "object") return false;
+      if (typeof p.name !== "string" || !p.name.trim()) return false;
+      if (!isTier(p.tier)) return false;
+      if (typeof p.mmr !== "number" || !isFinite(p.mmr)) return false;
+      if (typeof p.dpm !== "number" || !isFinite(p.dpm)) return false;
+      if (!Array.isArray(p.roles)) return false;
+      const roles = p.roles.map((r) => String(r));
+      p.roles = uniqueArray(roles.filter((r) => ROLE_IDS.indexOf(r) !== -1));
+      if (!p.roles.length) p.roles = ["infantry"];
+      p.name = p.name.trim();
+      return true;
+    }
 
-  $("online-room-code").textContent = room.code;
-  $("online-my-role").textContent = "Зритель";
-  $("online-match-status").textContent = "Ожидание создателя";
-  $("online-join-result").textContent = "Вход выполнен.";
-  $("online-room-section").classList.remove("hidden");
-  $("online-map-select").value = onlineState.draft.map;
-  $("online-mode-select").value = onlineState.draft.mode;
-  $("online-ai-strategy-1").value = onlineState.draft.aiStrategy1;
-  $("online-ai-strategy-2").value = onlineState.draft.aiStrategy2;
-  await refreshOnlineRoom();
-}
+    function validatePlayers(arr) {
+      if (!Array.isArray(arr)) return [];
+      const out = [];
+      const seen = {};
+      arr.forEach((p) => {
+        const copy = deepClone(p);
+        if (validatePlayer(copy)) {
+          if (!seen[copy.name]) {
+            seen[copy.name] = true;
+            out.push(copy);
+          }
+        }
+      });
+      return out;
+    }
 
-async function refreshOnlineRooms() {
-  const supabase = initSupabase();
-  const listEl = $("online-rooms-list");
-  listEl.innerHTML = "<div class='hint'>Загрузка...</div>";
-  const twoWeeksAgo = new Date(Date.now() - 14*24*60*60*1000).toISOString();
-  const { data: rooms, error } = await supabase
-    .from("rooms")
-    .select("id, code, created_at")
-    .gte("created_at", twoWeeksAgo)
-    .order("created_at", { ascending: false })
-    .limit(ROOMS_LIMIT);
-  if (error) {
-    console.error(error);
-    listEl.innerHTML = "<div class='hint'>Ошибка загрузки списка комнат.</div>";
-    return;
-  }
-  listEl.innerHTML = "";
-  rooms.forEach(r => {
-    const row = document.createElement("div");
-    row.className = "player-row";
-    const dt = new Date(r.created_at);
-    row.innerHTML = `
-      <div>
-        <span class="player-name">Комната ${r.code}</span>
-        <span class="player-info">создана ${dt.toLocaleString()}</span>
-      </div>
-    `;
-    row.addEventListener("click", () => {
-      $("online-join-code").value = r.code;
-    });
+    function validateCoeffs(obj) {
+      const out = deepClone(defaultCoeffs);
+      if (!obj || typeof obj !== "object") return out;
 
-    const delBtn = document.createElement("button");
-    delBtn.textContent = "Удалить";
-    delBtn.className = "danger";
-    delBtn.style.marginLeft = "8px";
-    delBtn.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      if (!onlineState.isAdmin) {
-        const pwd = prompt("Введите админ-пароль для удаления комнаты");
-        if ((pwd || "").trim() !== onlineState.adminPassword) {
-          alert("Неверный админ-пароль.");
+      if (obj.tier && typeof obj.tier === "object") {
+        TIERS.forEach((t) => {
+          if (typeof obj.tier[t] === "number" && isFinite(obj.tier[t])) {
+            out.tier[t] = obj.tier[t];
+          }
+        });
+      }
+      if (typeof obj.altPickChance === "number" && isFinite(obj.altPickChance)) {
+        out.altPickChance = clamp(obj.altPickChance, 0, 1);
+      }
+      if (typeof obj.tierBias === "number" && isFinite(obj.tierBias)) {
+        out.tierBias = Math.max(0, obj.tierBias);
+      }
+      return out;
+    }
+
+    function validateStrategies(obj) {
+      // Expected V15 structure:
+      // { version:"15.0", strategies: { key: {display:{ru,en}, description:{ru,en}, roleWeights:{roleId:number}, compositionTargets:{...}, specialTargets:{...}, overrides:{...}} } }
+      if (!obj || typeof obj !== "object") return null;
+      if (!obj.strategies || typeof obj.strategies !== "object") return null;
+
+      const out = {
+        version: obj.version || "15.0",
+        strategies: {}
+      };
+
+      Object.keys(obj.strategies).forEach((key) => {
+        const s = obj.strategies[key];
+        if (!s || typeof s !== "object") return;
+
+        const display = s.display && typeof s.display === "object" ? s.display : {};
+        const description = s.description && typeof s.description === "object" ? s.description : {};
+
+        const roleWeights = {};
+        ROLE_IDS.forEach((r) => {
+          let v = 1.0;
+          if (s.roleWeights && typeof s.roleWeights[r] === "number") {
+            v = s.roleWeights[r];
+          }
+          roleWeights[r] = Number(v) || 0;
+        });
+
+        const compositionTargets = {
+          infantry: 0,
+          tanks: 0,
+          mechanical: 0,
+          support: 0
+        };
+        if (s.compositionTargets && typeof s.compositionTargets === "object") {
+          Object.keys(compositionTargets).forEach((cat) => {
+            if (typeof s.compositionTargets[cat] === "number" && isFinite(s.compositionTargets[cat])) {
+              compositionTargets[cat] = clamp(Math.round(s.compositionTargets[cat]), 0, 5);
+            }
+          });
+        }
+
+        const specialTargets = {};
+        if (s.specialTargets && typeof s.specialTargets === "object") {
+          Object.keys(s.specialTargets).forEach((k2) => {
+            if (ROLE_IDS.indexOf(k2) !== -1) {
+              const v2 = s.specialTargets[k2];
+              if (typeof v2 === "number" && isFinite(v2)) {
+                specialTargets[k2] = clamp(Math.round(v2), 0, 5);
+              }
+            }
+          });
+        }
+
+        const overrides = s.overrides && typeof s.overrides === "object" ? deepClone(s.overrides) : {};
+
+        out.strategies[key] = {
+          display: {
+            ru: typeof display.ru === "string" ? display.ru : key,
+            en: typeof display.en === "string" ? display.en : key
+          },
+          description: {
+            ru: typeof description.ru === "string" ? description.ru : "",
+            en: typeof description.en === "string" ? description.en : ""
+          },
+          roleWeights: roleWeights,
+          compositionTargets: compositionTargets,
+          specialTargets: specialTargets,
+          overrides: overrides
+        };
+      });
+
+      if (!Object.keys(out.strategies).length) return null;
+      return out;
+    }
+
+    function validateAiSettings(obj) {
+      // We keep it permissive but enforce required blocks.
+      if (!obj || typeof obj !== "object") return null;
+      if (!obj.formula || typeof obj.formula !== "object") return null;
+      if (!obj.roleGroups || typeof obj.roleGroups !== "object") return null;
+      if (!obj.formula.weights || typeof obj.formula.weights !== "object") return null;
+
+      // Shallow clone; detailed edits happen in UI (we still normalize critical pieces).
+      const out = deepClone(obj);
+
+      // Ensure roleGroups contain arrays and only known roles
+      Object.keys(out.roleGroups).forEach((cat) => {
+        if (!Array.isArray(out.roleGroups[cat])) out.roleGroups[cat] = [];
+        out.roleGroups[cat] = uniqueArray(out.roleGroups[cat].map(String)).filter((r) => ROLE_IDS.indexOf(r) !== -1);
+      });
+
+      // Ensure supportSubtypeWeights exist for support roles
+      if (!out.supportSubtypeWeights || typeof out.supportSubtypeWeights !== "object") {
+        out.supportSubtypeWeights = {};
+      }
+      ["artillery", "spg", "at_artillery", "aa_artillery"].forEach((r) => {
+        if (typeof out.supportSubtypeWeights[r] !== "number") {
+          out.supportSubtypeWeights[r] = 1.0;
+        }
+      });
+
+      return out;
+    }
+
+    function loadFromLocalStorage() {
+      const pStr = localStorage.getItem(LOCAL_STORAGE_KEYS.PLAYERS);
+      if (pStr) {
+        state.players = validatePlayers(safeParseJSON(pStr, []));
+      }
+
+      const sStr = localStorage.getItem(LOCAL_STORAGE_KEYS.STRATEGIES);
+      if (sStr) {
+        const parsed = safeParseJSON(sStr, null);
+        const validated = validateStrategies(parsed);
+        if (validated) state.strategies = validated;
+      }
+
+      const cStr = localStorage.getItem(LOCAL_STORAGE_KEYS.COEFFS);
+      if (cStr) {
+        state.coeffs = validateCoeffs(safeParseJSON(cStr, null));
+      }
+
+      const aStr = localStorage.getItem(LOCAL_STORAGE_KEYS.AI_SETTINGS);
+      if (aStr) {
+        const validated = validateAiSettings(safeParseJSON(aStr, null));
+        if (validated) state.aiSettings = validated;
+      }
+
+      const uiStr = localStorage.getItem(LOCAL_STORAGE_KEYS.UI_SETTINGS);
+      if (uiStr) {
+        const parsed = safeParseJSON(uiStr, null);
+        if (parsed && typeof parsed === "object") {
+          state.uiSettings = Object.assign({}, defaultUiSettings, parsed);
+        }
+      }
+    }
+
+    function savePlayers() {
+      localStorage.setItem(LOCAL_STORAGE_KEYS.PLAYERS, JSON.stringify(state.players));
+    }
+
+    function saveStrategies() {
+      if (!state.strategies) return;
+      localStorage.setItem(LOCAL_STORAGE_KEYS.STRATEGIES, JSON.stringify(state.strategies));
+    }
+
+    function saveCoeffs() {
+      if (!state.coeffs) return;
+      localStorage.setItem(LOCAL_STORAGE_KEYS.COEFFS, JSON.stringify(state.coeffs));
+    }
+
+    function saveAiSettings() {
+      if (!state.aiSettings) return;
+      localStorage.setItem(LOCAL_STORAGE_KEYS.AI_SETTINGS, JSON.stringify(state.aiSettings));
+    }
+
+    function saveUiSettings() {
+      if (!state.uiSettings) return;
+      localStorage.setItem(LOCAL_STORAGE_KEYS.UI_SETTINGS, JSON.stringify(state.uiSettings));
+    }
+
+    function setPlayers(arr) {
+      state.players = validatePlayers(arr);
+      savePlayers();
+    }
+
+    function setCoeffs(obj) {
+      state.coeffs = validateCoeffs(obj);
+      saveCoeffs();
+    }
+
+    function setStrategies(obj) {
+      const validated = validateStrategies(obj);
+      if (!validated) {
+        throw new Error("Invalid strategies format");
+      }
+      state.strategies = validated;
+      saveStrategies();
+    }
+
+    function setAiSettings(obj) {
+      const validated = validateAiSettings(obj);
+      if (!validated) {
+        throw new Error("Invalid ai_settings format");
+      }
+      state.aiSettings = validated;
+      saveAiSettings();
+    }
+
+    function setUiSettings(obj) {
+      state.uiSettings = Object.assign({}, defaultUiSettings, obj || {});
+      saveUiSettings();
+    }
+
+    function getPlayers() {
+      return state.players || [];
+    }
+
+    function getPlayerByName(name) {
+      const arr = getPlayers();
+      return arr.find((p) => p.name === name) || null;
+    }
+
+    function getCoeffs() {
+      return state.coeffs || deepClone(defaultCoeffs);
+    }
+
+    function getStrategies() {
+      return state.strategies;
+    }
+
+    function getAiSettings() {
+      return state.aiSettings;
+    }
+
+    function getUiSettings() {
+      return state.uiSettings || deepClone(defaultUiSettings);
+    }
+
+    function fetchIfMissing() {
+      const promises = [];
+
+      if (!state.players || !state.players.length) {
+        promises.push(fetch("players.json", { cache: "no-cache" })
+          .then((r) => (r.ok ? r.json() : []))
+          .then((data) => {
+            const validated = validatePlayers(data);
+            state.players = validated;
+            savePlayers();
+          })
+          .catch(() => {
+            state.players = [];
+            savePlayers();
+          }));
+      }
+
+      if (!state.strategies) {
+        promises.push(fetch("ai_strategies_local.json", { cache: "no-cache" })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            const validated = validateStrategies(data);
+            if (validated) {
+              state.strategies = validated;
+              saveStrategies();
+            }
+          })
+          .catch(() => {}));
+      }
+
+      if (!state.coeffs) {
+        promises.push(fetch("ai_coeffs_local.json", { cache: "no-cache" })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            state.coeffs = validateCoeffs(data);
+            saveCoeffs();
+          })
+          .catch(() => {
+            state.coeffs = deepClone(defaultCoeffs);
+            saveCoeffs();
+          }));
+      }
+
+      if (!state.aiSettings) {
+        promises.push(fetch("ai_settings.json", { cache: "no-cache" })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            const validated = validateAiSettings(data);
+            if (validated) {
+              state.aiSettings = validated;
+              saveAiSettings();
+            }
+          })
+          .catch(() => {}));
+      }
+
+      if (!state.uiSettings) {
+        state.uiSettings = deepClone(defaultUiSettings);
+        saveUiSettings();
+      }
+
+      return Promise.all(promises);
+    }
+
+    function exportPlayersFile() {
+      downloadJSON(getPlayers(), "players.json");
+    }
+
+    function exportStrategiesFile() {
+      downloadJSON(getStrategies(), "ai_strategies_local.json");
+    }
+
+    function exportCoeffsFile() {
+      downloadJSON(getCoeffs(), "ai_coeffs_local.json");
+    }
+
+    function exportAiSettingsFile() {
+      downloadJSON(getAiSettings(), "ai_settings.json");
+    }
+
+    function exportBundle() {
+      const bundle = {
+        version: APP_VERSION,
+        createdAt: new Date().toISOString(),
+        language: i18nModule.getLanguage(),
+        players: getPlayers(),
+        strategies: getStrategies(),
+        coeffs: getCoeffs(),
+        aiSettings: getAiSettings(),
+        uiSettings: getUiSettings()
+      };
+      downloadJSON(bundle, "mow2_draft_bundle_v15.json");
+    }
+
+    function importPlayersText(text) {
+      const parsed = safeParseJSON(text, null);
+      const validated = validatePlayers(parsed);
+      setPlayers(validated);
+      return true;
+    }
+
+    function importStrategiesText(text) {
+      const parsed = safeParseJSON(text, null);
+      setStrategies(parsed);
+      return true;
+    }
+
+    function importCoeffsText(text) {
+      const parsed = safeParseJSON(text, null);
+      setCoeffs(parsed);
+      return true;
+    }
+
+    function importAiSettingsText(text) {
+      const parsed = safeParseJSON(text, null);
+      setAiSettings(parsed);
+      return true;
+    }
+
+    function importBundleText(text) {
+      const parsed = safeParseJSON(text, null);
+      if (!parsed || typeof parsed !== "object") throw new Error("Invalid bundle JSON");
+
+      if (parsed.language === "ru" || parsed.language === "en") {
+        i18nModule.setLanguage(parsed.language);
+        const langSel = $("lang-select");
+        if (langSel) langSel.value = parsed.language;
+      }
+
+      if (parsed.players) setPlayers(parsed.players);
+      if (parsed.strategies) setStrategies(parsed.strategies);
+      if (parsed.coeffs) setCoeffs(parsed.coeffs);
+      if (parsed.aiSettings) setAiSettings(parsed.aiSettings);
+      if (parsed.uiSettings) setUiSettings(parsed.uiSettings);
+
+      return true;
+    }
+
+    function init() {
+      loadFromLocalStorage();
+      return fetchIfMissing().then(() => true);
+    }
+
+    return {
+      init,
+      ROLE_IDS: ROLE_IDS,
+      getPlayers,
+      getPlayerByName,
+      setPlayers,
+      getCoeffs,
+      setCoeffs,
+      getStrategies,
+      setStrategies,
+      getAiSettings,
+      setAiSettings,
+      getUiSettings,
+      setUiSettings,
+      savePlayers,
+      saveStrategies,
+      saveCoeffs,
+      saveAiSettings,
+      saveUiSettings,
+      exportPlayersFile,
+      exportStrategiesFile,
+      exportCoeffsFile,
+      exportAiSettingsFile,
+      exportBundle,
+      importPlayersText,
+      importStrategiesText,
+      importCoeffsText,
+      importAiSettingsText,
+      importBundleText
+    };
+  })();
+
+  // ------------------------------------------------------
+  // --- themeModule: фон/лого/картинка меню/акцент
+  // ------------------------------------------------------
+
+  const themeModule = (function () {
+    function applyTheme() {
+      const ui = dataModule.getUiSettings();
+      const accent = ui.accentColor || "#7a1f1f";
+      document.documentElement.style.setProperty("--accent-color", accent);
+      document.documentElement.style.setProperty("--accent-glow", "rgba(122, 31, 31, 0.35)");
+
+      if (ui.backgroundDataUrl) {
+        document.body.style.backgroundImage = "url('" + ui.backgroundDataUrl + "')";
+      } else {
+        document.body.style.backgroundImage = "none";
+      }
+
+      const logo = $("app-logo");
+      if (logo) {
+        if (ui.logoDataUrl) {
+          logo.src = ui.logoDataUrl;
+          logo.style.opacity = "1";
+        } else {
+          logo.removeAttribute("src");
+          logo.style.opacity = "0.35";
+        }
+      }
+
+      const menuImg = $("menu-fun-image");
+      if (menuImg) {
+        if (ui.menuImageDataUrl) {
+          menuImg.src = ui.menuImageDataUrl;
+          menuImg.style.opacity = "1";
+        } else {
+          menuImg.removeAttribute("src");
+          menuImg.style.opacity = "0.35";
+        }
+      }
+
+      const accentPicker = $("appearance-accent-color");
+      if (accentPicker) {
+        accentPicker.value = accent;
+      }
+    }
+
+    function resetBackground() {
+      const ui = dataModule.getUiSettings();
+      ui.backgroundDataUrl = null;
+      dataModule.setUiSettings(ui);
+      applyTheme();
+    }
+
+    function resetLogo() {
+      const ui = dataModule.getUiSettings();
+      ui.logoDataUrl = null;
+      dataModule.setUiSettings(ui);
+      applyTheme();
+    }
+
+    function resetMenuImage() {
+      const ui = dataModule.getUiSettings();
+      ui.menuImageDataUrl = null;
+      dataModule.setUiSettings(ui);
+      applyTheme();
+    }
+
+    function initAppearanceUI() {
+      const bgFile = $("appearance-bg-file");
+      const logoFile = $("appearance-logo-file");
+      const menuFile = $("appearance-menuimg-file");
+      const accentColor = $("appearance-accent-color");
+
+      const resetBgBtn = $("appearance-reset-bg-btn");
+      const resetLogoBtn = $("appearance-reset-logo-btn");
+      const resetMenuBtn = $("appearance-reset-menuimg-btn");
+      const saveBtn = $("appearance-save-btn");
+      const status = $("appearance-status");
+
+      if (bgFile) {
+        bgFile.addEventListener("change", function () {
+          const file = bgFile.files && bgFile.files[0];
+          if (!file) return;
+          readFileAsDataURL(file).then((dataUrl) => {
+            const ui = dataModule.getUiSettings();
+            ui.backgroundDataUrl = dataUrl;
+            dataModule.setUiSettings(ui);
+            applyTheme();
+            setText(status, i18nModule.t("common.save") + ": OK");
+          });
+        });
+      }
+
+      if (logoFile) {
+        logoFile.addEventListener("change", function () {
+          const file = logoFile.files && logoFile.files[0];
+          if (!file) return;
+          readFileAsDataURL(file).then((dataUrl) => {
+            const ui = dataModule.getUiSettings();
+            ui.logoDataUrl = dataUrl;
+            dataModule.setUiSettings(ui);
+            applyTheme();
+            setText(status, i18nModule.t("common.save") + ": OK");
+          });
+        });
+      }
+
+      if (menuFile) {
+        menuFile.addEventListener("change", function () {
+          const file = menuFile.files && menuFile.files[0];
+          if (!file) return;
+          readFileAsDataURL(file).then((dataUrl) => {
+            const ui = dataModule.getUiSettings();
+            ui.menuImageDataUrl = dataUrl;
+            dataModule.setUiSettings(ui);
+            applyTheme();
+            setText(status, i18nModule.t("common.save") + ": OK");
+          });
+        });
+      }
+
+      if (resetBgBtn) resetBgBtn.addEventListener("click", function () { resetBackground(); setText(status, "OK"); });
+      if (resetLogoBtn) resetLogoBtn.addEventListener("click", function () { resetLogo(); setText(status, "OK"); });
+      if (resetMenuBtn) resetMenuBtn.addEventListener("click", function () { resetMenuImage(); setText(status, "OK"); });
+
+      if (saveBtn) {
+        saveBtn.addEventListener("click", function () {
+          const ui = dataModule.getUiSettings();
+          if (accentColor) {
+            ui.accentColor = accentColor.value || ui.accentColor;
+          }
+          dataModule.setUiSettings(ui);
+          applyTheme();
+          setText(status, i18nModule.t("common.save") + ": OK");
+        });
+      }
+
+      applyTheme();
+    }
+
+    return {
+      applyTheme,
+      initAppearanceUI,
+      resetBackground,
+      resetLogo,
+      resetMenuImage
+    };
+  })();
+
+  // ------------------------------------------------------
+  // --- aiModule: оценка, подсказки, планирование
+  // ------------------------------------------------------
+
+  const aiModule = (function () {
+    function getRoleGroups() {
+      const s = dataModule.getAiSettings();
+      return (s && s.roleGroups) ? s.roleGroups : {
+        infantry: ["infantry", "motorized_infantry", "assault_infantry", "sapper"],
+        tanks: ["tanks", "heavy_tanks"],
+        mechanical: ["mechanical"],
+        support: ["artillery", "spg", "at_artillery", "aa_artillery"]
+      };
+    }
+
+    function getSupportSubtypeWeights() {
+      const s = dataModule.getAiSettings();
+      const w = (s && s.supportSubtypeWeights) ? s.supportSubtypeWeights : {};
+      return {
+        artillery: typeof w.artillery === "number" ? w.artillery : 1.0,
+        spg: typeof w.spg === "number" ? w.spg : 1.0,
+        at_artillery: typeof w.at_artillery === "number" ? w.at_artillery : 1.0,
+        aa_artillery: typeof w.aa_artillery === "number" ? w.aa_artillery : 1.0
+      };
+    }
+
+    function normalizeMMR(mmr, settings) {
+      const norm = settings.formula.normalization;
+      const mode = norm.mmrMode || "minmax";
+      if (mode === "div") {
+        const div = Number(norm.mmrDiv) || 100.0;
+        return (Number(mmr) || 0) / div;
+      }
+      // minmax
+      const min = Number(norm.mmrMin) || 1000;
+      const max = Number(norm.mmrMax) || 2500;
+      if (max <= min) return 0;
+      return clamp(((Number(mmr) || 0) - min) / (max - min), 0, 1);
+    }
+
+    function normalizeDPM(dpm, settings) {
+      const norm = settings.formula.normalization;
+      const mode = norm.dpmMode || "div";
+      if (mode === "minmax") {
+        // If you later want it, add dpmMin/dpmMax here (kept in JSON for future patching).
+        const min = Number(norm.dpmMin) || 0;
+        const max = Number(norm.dpmMax) || 50000;
+        if (max <= min) return 0;
+        return clamp(((Number(dpm) || 0) - min) / (max - min), 0, 1);
+      }
+      const div = Number(norm.dpmDiv) || 5000.0;
+      return (Number(dpm) || 0) / div;
+    }
+
+    function playerHasAnyRole(player, rolesArr) {
+      if (!player || !Array.isArray(player.roles)) return false;
+      for (let i = 0; i < rolesArr.length; i++) {
+        if (player.roles.indexOf(rolesArr[i]) !== -1) return true;
+      }
+      return false;
+    }
+
+    function getPlayerCategories(player) {
+      const groups = getRoleGroups();
+      const out = {
+        infantry: playerHasAnyRole(player, groups.infantry || []),
+        tanks: playerHasAnyRole(player, groups.tanks || []),
+        mechanical: playerHasAnyRole(player, groups.mechanical || []),
+        support: playerHasAnyRole(player, groups.support || [])
+      };
+      return out;
+    }
+
+    function isSupportOnlySpecialist(player) {
+      const groups = getRoleGroups();
+      const support = groups.support || [];
+      const roles = Array.isArray(player.roles) ? player.roles : [];
+      if (!roles.length) return false;
+
+      // support-only means: all roles are in support group
+      for (let i = 0; i < roles.length; i++) {
+        if (support.indexOf(roles[i]) === -1) return false;
+      }
+      return true;
+    }
+
+    function countSupportOnly(players) {
+      let c = 0;
+      (players || []).forEach((p) => {
+        if (isSupportOnlySpecialist(p)) c++;
+      });
+      return c;
+    }
+
+    function countSupportTotal(players) {
+      const groups = getRoleGroups();
+      const support = groups.support || [];
+      let c = 0;
+      (players || []).forEach((p) => {
+        if (playerHasAnyRole(p, support)) c++;
+      });
+      return c;
+    }
+
+    function countRoleInTeam(players, roleId) {
+      let c = 0;
+      (players || []).forEach((p) => {
+        if (Array.isArray(p.roles) && p.roles.indexOf(roleId) !== -1) c++;
+      });
+      return c;
+    }
+
+    function countCategoryInTeam(players, category) {
+      let c = 0;
+      (players || []).forEach((p) => {
+        const cats = getPlayerCategories(p);
+        if (cats[category]) c++;
+      });
+      return c;
+    }
+
+    function computeTierFactor(player, coeffs) {
+      const tierMult = coeffs && coeffs.tier && typeof coeffs.tier[player.tier] === "number"
+        ? coeffs.tier[player.tier]
+        : 1.0;
+      const bias = coeffs && typeof coeffs.tierBias === "number" ? coeffs.tierBias : 1.0;
+      return tierMult * bias;
+    }
+
+    function getBestTierRankAmong(available) {
+      let best = 999;
+      (available || []).forEach((p) => {
+        const tr = tierRank(p.tier);
+        if (tr < best) best = tr;
+      });
+      return best;
+    }
+
+    function getStrategyByKey(key) {
+      const pack = dataModule.getStrategies();
+      if (!pack || !pack.strategies) return null;
+      return pack.strategies[key] || null;
+    }
+
+    function getStrategyKeyList() {
+      const pack = dataModule.getStrategies();
+      if (!pack || !pack.strategies) return [];
+      return Object.keys(pack.strategies);
+    }
+
+    function calcRolePreferenceScore(player, strategy) {
+      const roles = Array.isArray(player.roles) ? player.roles : [];
+      if (!strategy || !strategy.roleWeights) return 0;
+
+      let sum = 0;
+      roles.forEach((r) => {
+        const w = typeof strategy.roleWeights[r] === "number" ? strategy.roleWeights[r] : 0;
+        sum += w;
+      });
+      return sum;
+    }
+
+    function calcCompositionScore(player, ownTeamPlayers, strategy, aiSettings) {
+      if (!strategy || !strategy.compositionTargets) return 0;
+      const targets = strategy.compositionTargets;
+      const groups = getRoleGroups();
+
+      const cats = getPlayerCategories(player);
+      const weights = aiSettings.formula.composition || {};
+      const catWeights = weights.categoryWeights || {};
+      const progressBonus = Number(weights.progressBonusPerMissing) || 0;
+      const alreadyFactor = Number(weights.alreadySatisfiedFactor) || 0;
+      const oversupplyPenalty = Number(weights.oversupplyPenaltyPerExtra) || 0;
+
+      let score = 0;
+      ["infantry", "tanks", "mechanical", "support"].forEach((cat) => {
+        const target = Number(targets[cat] || 0);
+        if (target <= 0) return;
+
+        const now = countCategoryInTeam(ownTeamPlayers, cat);
+        const contributes = !!cats[cat];
+
+        if (!contributes) return;
+
+        const weight = typeof catWeights[cat] === "number" ? catWeights[cat] : 1.0;
+
+        if (now < target) {
+          const missing = target - now;
+          score += weight * progressBonus * missing;
+        } else {
+          // already satisfied: still may be useful, but reduced
+          score += weight * alreadyFactor;
+          // oversupply penalty: if you already have more than target
+          const extra = now - target + 1;
+          score -= weight * oversupplyPenalty * extra;
+        }
+      });
+
+      // support subtype nuance (AT more valuable by default)
+      if (cats.support) {
+        const subW = getSupportSubtypeWeights();
+        const roles = Array.isArray(player.roles) ? player.roles : [];
+        let bestSub = 0;
+        roles.forEach((r) => {
+          if (subW[r] != null) {
+            bestSub = Math.max(bestSub, Number(subW[r]) || 0);
+          }
+        });
+        score *= clamp(0.6 + bestSub * 0.4, 0.4, 1.6);
+      }
+
+      // specialTargets: e.g., need heavy_tanks: 2
+      if (strategy.specialTargets && typeof strategy.specialTargets === "object") {
+        Object.keys(strategy.specialTargets).forEach((roleId) => {
+          const target = Number(strategy.specialTargets[roleId] || 0);
+          if (target <= 0) return;
+          const now = countRoleInTeam(ownTeamPlayers, roleId);
+          if (now < target) {
+            if (Array.isArray(player.roles) && player.roles.indexOf(roleId) !== -1) {
+              // reward strongly if it helps achieve a special target
+              score += 1.25 * (target - now);
+            }
+          }
+        });
+      }
+
+      // universal support discount (do not treat universal as full support by default)
+      const uni = aiSettings.formula.universal || {};
+      const minRolesForUni = Number(uni.minRolesToBeUniversal) || 4;
+      const isUni = (Array.isArray(player.roles) ? player.roles.length : 0) >= minRolesForUni;
+      const comp = aiSettings.formula.composition || {};
+      const universalSupportDiscountFactor = typeof comp.universalSupportDiscountFactor === "number"
+        ? comp.universalSupportDiscountFactor
+        : 0.35;
+
+      if (isUni && cats.support) {
+        score *= clamp(1.0 - universalSupportDiscountFactor, 0.1, 1.0);
+      }
+
+      return score;
+    }
+
+    function calcUniversalScore(player, aiSettings) {
+      const uni = aiSettings.formula.universal || {};
+      const rolesCount = Array.isArray(player.roles) ? player.roles.length : 0;
+
+      const minUni = Number(uni.minRolesToBeUniversal) || 4;
+      const uniBonus = Number(uni.universalBonus) || 0;
+      const minAvoidNarrow = Number(uni.minRolesToAvoidNarrow) || 2;
+      const narrowPenalty = Number(uni.narrowSpecialistPenalty) || 0;
+
+      let s = 0;
+      if (rolesCount >= minUni) {
+        s += uniBonus;
+      } else if (rolesCount < minAvoidNarrow) {
+        s -= narrowPenalty;
+      }
+      return s;
+    }
+
+    function calcCounterScore(player, enemyTeamPlayers, aiSettings) {
+      const counterCfg = aiSettings.formula.counter || {};
+      if (!counterCfg.enabled) return 0;
+
+      const table = aiSettings.counterTable || {};
+      const roles = Array.isArray(player.roles) ? player.roles : [];
+      let sum = 0;
+
+      roles.forEach((myRole) => {
+        const map = table[myRole];
+        if (!map || typeof map !== "object") return;
+
+        enemyTeamPlayers.forEach((ep) => {
+          const eroles = Array.isArray(ep.roles) ? ep.roles : [];
+          eroles.forEach((er) => {
+            if (typeof map[er] === "number") {
+              sum += Number(map[er]) || 0;
+            }
+          });
+        });
+      });
+
+      const mult = Number(counterCfg.globalWeightMultiplier) || 1.0;
+      return sum * mult;
+    }
+
+    function calcPenalties(player, ownTeamPlayers, availablePlayers, strategy, aiSettings) {
+      const soft = aiSettings.formula.softCaps || {};
+      const penaltiesMult = Number(aiSettings.formula.weights.penaltiesMultiplier) || 1.0;
+
+      let penalty = 0;
+
+      // Support-only soft cap
+      if (soft.supportOnly && soft.supportOnly.enabled) {
+        const maxPref = Number(soft.supportOnly.maxPreferred) || 0;
+        const pen2 = Number(soft.supportOnly.penaltySecond) || 0;
+        const pen3 = Number(soft.supportOnly.penaltyThirdPlus) || 0;
+
+        const currentCount = countSupportOnly(ownTeamPlayers);
+        const willBeSupportOnly = isSupportOnlySpecialist(player);
+
+        if (willBeSupportOnly) {
+          if (currentCount >= maxPref) {
+            if (currentCount === maxPref) penalty += pen2;
+            if (currentCount > maxPref) penalty += pen3;
+          }
+        }
+      }
+
+      // Support total soft cap
+      if (soft.supportTotal && soft.supportTotal.enabled) {
+        const maxPref = Number(soft.supportTotal.maxPreferred) || 0;
+        const penPer = Number(soft.supportTotal.penaltyPerExtra) || 0;
+
+        const groups = getRoleGroups();
+        const supportRoles = groups.support || [];
+
+        const currentSupport = countSupportTotal(ownTeamPlayers);
+        const willBeSupport = playerHasAnyRole(player, supportRoles);
+
+        if (willBeSupport) {
+          const next = currentSupport + 1;
+          if (next > maxPref) {
+            penalty += penPer * (next - maxPref);
+          }
+        }
+      }
+
+      // "Don't spend universal on support" preference
+      const uni = aiSettings.formula.universal || {};
+      const dontSpend = !!uni.dontSpendUniversalOnSupport;
+      const universalOnSupportPenalty = Number(uni.universalOnSupportPenalty) || 0;
+
+      if (dontSpend) {
+        const rolesCount = Array.isArray(player.roles) ? player.roles.length : 0;
+        const minUni = Number(uni.minRolesToBeUniversal) || 4;
+        const isUni = rolesCount >= minUni;
+        const cats = getPlayerCategories(player);
+        if (isUni && cats.support) {
+          // We only penalize if there exist support-specialists among available (so we can save universal)
+          const groups = getRoleGroups();
+          const support = groups.support || [];
+          const anySupportOnlyAvailable = (availablePlayers || []).some((p) => isSupportOnlySpecialist(p));
+          if (anySupportOnlyAvailable) {
+            penalty += universalOnSupportPenalty;
+          }
+        }
+      }
+
+      return penalty * penaltiesMult;
+    }
+
+    function calcMmrGapBonus(player, availablePlayers, aiSettings) {
+      const cfg = aiSettings.formula.mmrGap || {};
+      const thr = Number(cfg.threshold) || 100;
+      const per100 = Number(cfg.bonusPer100) || 0;
+
+      // For gap logic we compare with the best MMR in the SAME Tier among available (excluding player)
+      const sameTier = (availablePlayers || []).filter((p) => p.tier === player.tier && p.name !== player.name);
+      if (!sameTier.length) return 0;
+
+      let bestOther = 0;
+      sameTier.forEach((p) => {
+        bestOther = Math.max(bestOther, Number(p.mmr) || 0);
+      });
+
+      const gap = (Number(player.mmr) || 0) - bestOther;
+      if (gap <= thr) return 0;
+
+      // Each +100 over threshold gives bonusPer100
+      const hundredSteps = Math.floor(gap / 100);
+      return hundredSteps * per100;
+    }
+
+    function calcTierDominancePenalty(player, availablePlayers, aiSettings) {
+      const td = aiSettings.formula.tierDominance || {};
+      if (!td.enabled) return 0;
+
+      const bestRank = getBestTierRankAmong(availablePlayers);
+      const myRank = tierRank(player.tier);
+
+      if (myRank <= bestRank) return 0;
+
+      const p = Number(td.downPenaltyWhenHigherExists) || 0;
+      // Penalty grows by tier steps difference
+      const steps = myRank - bestRank;
+      return p * steps;
+    }
+
+    function calcPlayerValue(player, context) {
+      // context: { ownTeamPlayers, enemyTeamPlayers, availablePlayers, strategyKey, mode }
+      const coeffs = dataModule.getCoeffs();
+      const aiSettings = dataModule.getAiSettings();
+      const strategy = getStrategyByKey(context.strategyKey) || getStrategyByKey("balanced");
+
+      const w = aiSettings.formula.weights || {};
+
+      const mmrScore = normalizeMMR(player.mmr, aiSettings);
+      const dpmScore = normalizeDPM(player.dpm, aiSettings);
+
+      const powerScore = (Number(w.mmr) || 0) * mmrScore + (Number(w.dpm) || 0) * dpmScore;
+
+      const rolePrefRaw = calcRolePreferenceScore(player, strategy);
+      const rolePrefScore = (Number(w.rolePref) || 0) * rolePrefRaw;
+
+      const compRaw = calcCompositionScore(player, context.ownTeamPlayers || [], strategy, aiSettings);
+      const compScore = (Number(w.composition) || 0) * compRaw;
+
+      const uniRaw = calcUniversalScore(player, aiSettings);
+      const uniMult = (strategy && strategy.overrides && typeof strategy.overrides.universalWeightMultiplier === "number")
+        ? strategy.overrides.universalWeightMultiplier
+        : 1.0;
+      const uniScore = (Number(w.universal) || 0) * uniRaw * uniMult;
+
+      const counterRaw = calcCounterScore(player, context.enemyTeamPlayers || [], aiSettings);
+      const counterMult = (strategy && strategy.overrides && typeof strategy.overrides.counterWeightMultiplier === "number")
+        ? strategy.overrides.counterWeightMultiplier
+        : 1.0;
+      const counterScore = (Number(w.counter) || 0) * counterRaw * counterMult;
+
+      const mmrGapBonus = calcMmrGapBonus(player, context.availablePlayers || [], aiSettings);
+      const tierDomPenalty = calcTierDominancePenalty(player, context.availablePlayers || [], aiSettings);
+      const penalties = calcPenalties(player, context.ownTeamPlayers || [], context.availablePlayers || [], strategy, aiSettings);
+
+      const tierFactor = computeTierFactor(player, coeffs);
+
+      const base = powerScore + rolePrefScore + compScore + uniScore + counterScore + mmrGapBonus - tierDomPenalty - penalties;
+
+      const noiseAmp = Number(w.noiseAmplitude) || 0;
+      const noise = noiseAmp > 0 ? (Math.random() - 0.5) * 2 * noiseAmp : 0;
+
+      const value = base * tierFactor + noise;
+
+      return {
+        value: value,
+        breakdown: {
+          tierFactor: tierFactor,
+          mmrScore: mmrScore,
+          dpmScore: dpmScore,
+          powerScore: powerScore,
+          rolePrefRaw: rolePrefRaw,
+          rolePrefScore: rolePrefScore,
+          compRaw: compRaw,
+          compScore: compScore,
+          uniRaw: uniRaw,
+          uniScore: uniScore,
+          counterRaw: counterRaw,
+          counterScore: counterScore,
+          mmrGapBonus: mmrGapBonus,
+          tierDomPenalty: tierDomPenalty,
+          penalties: penalties
+        }
+      };
+    }
+
+    function scoreAvailablePlayers(availablePlayers, context) {
+      const out = [];
+      (availablePlayers || []).forEach((p) => {
+        const r = calcPlayerValue(p, context);
+        out.push({
+          player: p,
+          value: r.value,
+          breakdown: r.breakdown
+        });
+      });
+      out.sort((a, b) => b.value - a.value);
+      return out;
+    }
+
+    function pickWithAltChance(scored, coeffs, aiSettings) {
+      if (!scored.length) return null;
+
+      const chance = typeof coeffs.altPickChance === "number" ? coeffs.altPickChance : 0.2;
+      const hints = aiSettings.formula.hints || {};
+      const topN = Math.max(2, Math.min(6, 3)); // fixed 3 for now; can be expanded in next patch
+      const top = scored.slice(0, Math.min(scored.length, topN));
+
+      if (top.length < 2) return top[0];
+
+      const roll = Math.random();
+      if (roll >= clamp(chance, 0, 1)) {
+        return top[0];
+      }
+
+      // Choose one of alternatives 1..top-1 uniformly
+      const idx = 1 + Math.floor(Math.random() * (top.length - 1));
+      return top[idx];
+    }
+
+    function buildReasonsForCandidate(item, context, strategyKey) {
+      const aiSettings = dataModule.getAiSettings();
+      const coeffs = dataModule.getCoeffs();
+      const reasons = [];
+
+      // Always include a base reason for power-first
+      reasons.push({ code: "POWER_FIRST", params: {} });
+
+      // Tier dominance / higher tier among available
+      const bestRank = getBestTierRankAmong(context.availablePlayers || []);
+      const myRank = tierRank(item.player.tier);
+      if (myRank === bestRank) {
+        reasons.push({ code: "TIER_HIGHER", params: {} });
+      }
+
+      // MMR gap
+      const cfg = aiSettings.formula.mmrGap || {};
+      const thr = Number(cfg.explainThreshold) || 100;
+      const sameTier = (context.availablePlayers || []).filter((p) => p.tier === item.player.tier && p.name !== item.player.name);
+      if (sameTier.length) {
+        let bestOther = 0;
+        sameTier.forEach((p) => { bestOther = Math.max(bestOther, Number(p.mmr) || 0); });
+        const gap = (Number(item.player.mmr) || 0) - bestOther;
+        if (gap >= thr) {
+          reasons.push({ code: "MMR_GAP", params: { gap: gap } });
+        }
+      }
+
+      // Composition: highlight if candidate closes a missing target
+      const strategy = getStrategyByKey(strategyKey) || getStrategyByKey("balanced");
+      if (strategy && strategy.compositionTargets) {
+        const targets = strategy.compositionTargets;
+        ["infantry", "tanks", "mechanical", "support"].forEach((cat) => {
+          const target = Number(targets[cat] || 0);
+          if (target <= 0) return;
+
+          const now = countCategoryInTeam(context.ownTeamPlayers || [], cat);
+          const contributes = getPlayerCategories(item.player)[cat];
+
+          if (contributes && now < target) {
+            reasons.push({
+              code: "CLOSES_TARGET",
+              params: { cat: i18nModule.categoryLabel(cat), now: now, target: target }
+            });
+          }
+        });
+      }
+
+      // Universal
+      const uni = aiSettings.formula.universal || {};
+      const minUni = Number(uni.minRolesToBeUniversal) || 4;
+      const rc = Array.isArray(item.player.roles) ? item.player.roles.length : 0;
+      if (rc >= minUni) {
+        reasons.push({ code: "UNIVERSAL", params: { count: rc } });
+      }
+
+      // Support specialist (if primarily support-only)
+      if (isSupportOnlySpecialist(item.player)) {
+        reasons.push({ code: "SUPPORT_SPECIALIST", params: {} });
+      }
+
+      // Softcap warning (only if penalties are significant)
+      if ((Number(item.breakdown.penalties) || 0) > 0.9) {
+        if (isSupportOnlySpecialist(item.player)) {
+          reasons.push({ code: "SOFTCAP_SUPPORT_ONLY", params: {} });
+        } else {
+          reasons.push({ code: "AVOID_SUPPORT_OVERLOAD", params: {} });
+        }
+      }
+
+      // Counter (rare)
+      const counterCfg = aiSettings.formula.counter || {};
+      const explainThr = Number(counterCfg.explainThreshold) || 999;
+      if ((Number(item.breakdown.counterRaw) || 0) >= explainThr) {
+        reasons.push({ code: "COUNTER", params: { detail: "role-match" } });
+      }
+
+      return reasons.slice(0, 4); // keep concise in UI
+    }
+
+    function getRecommendations(availablePlayers, context) {
+      const coeffs = dataModule.getCoeffs();
+      const aiSettings = dataModule.getAiSettings();
+
+      const scored = scoreAvailablePlayers(availablePlayers, context);
+      if (!scored.length) {
+        return { best: null, alternatives: [] };
+      }
+
+      const hintsCfg = aiSettings.formula.hints || {};
+      const altsCount = typeof hintsCfg.alternativesCount === "number" ? hintsCfg.alternativesCount : 2;
+
+      const best = scored[0];
+      const alternatives = scored.slice(1, 1 + Math.max(0, altsCount));
+
+      return {
+        best: {
+          player: best.player,
+          value: best.value,
+          breakdown: best.breakdown,
+          reasons: buildReasonsForCandidate(best, context, context.strategyKey)
+        },
+        alternatives: alternatives.map((it) => ({
+          player: it.player,
+          value: it.value,
+          breakdown: it.breakdown,
+          reasons: buildReasonsForCandidate(it, context, context.strategyKey)
+        }))
+      };
+    }
+
+    function pickPlayerAi(availablePlayers, context) {
+      const coeffs = dataModule.getCoeffs();
+      const aiSettings = dataModule.getAiSettings();
+      const scored = scoreAvailablePlayers(availablePlayers, context);
+      const chosen = pickWithAltChance(scored, coeffs, aiSettings);
+      return chosen ? chosen.player : null;
+    }
+
+    function pickEnemyPowerFirst(availablePlayers) {
+      const arr = (availablePlayers || []).slice();
+      arr.sort((a, b) => comparePlayersPower(a, b));
+      return arr.length ? arr[0] : null;
+    }
+
+    function simulatePlan(draftState, mode, teamKeyForView) {
+      // Returns a plan object:
+      // { steps: [{pickIndex, pickNumber, team, playerName}], projectedTeam1, projectedTeam2 }
+      const aiSettings = dataModule.getAiSettings();
+      const planCfg = aiSettings.formula.planning || {};
+      if (!planCfg.enabled) {
+        return { steps: [], projectedTeam1: [], projectedTeam2: [] };
+      }
+
+      const topK = Number(planCfg.candidateTopK) || 14;
+      const enemyModel = planCfg.enemyModel || "power_first";
+
+      const ds = deepClone(draftState);
+
+      const allPlayers = dataModule.getPlayers().slice();
+      const pickedNames = {};
+      (ds.team1.players || []).forEach((p) => { pickedNames[p.name] = true; });
+      (ds.team2.players || []).forEach((p) => { pickedNames[p.name] = true; });
+
+      const available = allPlayers.filter((p) => !pickedNames[p.name]);
+
+      const steps = [];
+
+      for (let idx = ds.currentPickIndex; idx < DRAFT_ORDER.length; idx++) {
+        const meta = DRAFT_ORDER[idx];
+        const team = meta.team;
+        const strategyKey = team === "team1" ? ds.strategyTeam1 : ds.strategyTeam2;
+
+        const ownTeamPlayers = team === "team1" ? ds.team1.players : ds.team2.players;
+        const enemyTeamPlayers = team === "team1" ? ds.team2.players : ds.team1.players;
+
+        // Candidate set restriction for performance: topK by power first, then AI scoring
+        const powerSorted = available.slice().sort((a, b) => comparePlayersPower(a, b));
+        const candidateSlice = powerSorted.slice(0, Math.min(powerSorted.length, Math.max(4, topK)));
+
+        let pick = null;
+        if (enemyModel === "power_first") {
+          // Even for own team in planning, we use the real strategy; for enemy, power-first.
+          // For the team we are planning for, keep strategy; for opponent in simulation, use power-first.
+          if (teamKeyForView && team !== teamKeyForView) {
+            pick = pickEnemyPowerFirst(candidateSlice) || pickEnemyPowerFirst(available);
+          } else {
+            pick = pickPlayerAi(candidateSlice, {
+              ownTeamPlayers: ownTeamPlayers,
+              enemyTeamPlayers: enemyTeamPlayers,
+              availablePlayers: available,
+              strategyKey: strategyKey
+            }) || pickEnemyPowerFirst(available);
+          }
+        } else {
+          // same_strategy: use strategy for both teams
+          pick = pickPlayerAi(candidateSlice, {
+            ownTeamPlayers: ownTeamPlayers,
+            enemyTeamPlayers: enemyTeamPlayers,
+            availablePlayers: available,
+            strategyKey: strategyKey
+          }) || pickEnemyPowerFirst(available);
+        }
+
+        if (!pick) break;
+
+        // Apply simulated pick
+        if (team === "team1") ds.team1.players.push(pick);
+        else ds.team2.players.push(pick);
+
+        pickedNames[pick.name] = true;
+        const remIndex = available.findIndex((p) => p.name === pick.name);
+        if (remIndex >= 0) available.splice(remIndex, 1);
+
+        steps.push({
+          pickIndex: idx,
+          pickNumber: meta.pick,
+          team: team,
+          playerName: pick.name
+        });
+      }
+
+      return {
+        steps: steps,
+        projectedTeam1: ds.team1.players,
+        projectedTeam2: ds.team2.players
+      };
+    }
+
+    function getStrategyKeyListSafe() {
+      const list = getStrategyKeyList();
+      if (!list.length) return ["balanced"];
+      return list;
+    }
+
+    return {
+      getStrategyKeyListSafe,
+      getStrategyByKey,
+      calcPlayerValue,
+      getRecommendations,
+      pickPlayerAi,
+      simulatePlan,
+      isSupportOnlySpecialist,
+      getPlayerCategories,
+      countCategoryInTeam,
+      countSupportOnly,
+      countSupportTotal
+    };
+  })();
+
+  // ------------------------------------------------------
+  // --- offlineDraftModule: режимы, капитаны, пул, пики
+  // ------------------------------------------------------
+
+  const offlineDraftModule = (function () {
+    const settings = {
+      mode: "human_vs_ai",
+      humanSide: "team1",
+      strategyTeam1: "balanced",
+      strategyTeam2: "balanced",
+      showPlanning: true
+    };
+
+    const state = {
+      status: "idle", // idle | draft | finished
+      currentPickIndex: 0,
+      team1: { captain: null, players: [] },
+      team2: { captain: null, players: [] },
+      picks: [],
+      pool: { inPool: {} }
+    };
+
+    function saveDraftLocal() {
+      const obj = { settings: settings, state: state };
+      localStorage.setItem(LOCAL_STORAGE_KEYS.OFFLINE_DRAFT, JSON.stringify(obj));
+    }
+
+    function loadDraftLocal() {
+      const raw = localStorage.getItem(LOCAL_STORAGE_KEYS.OFFLINE_DRAFT);
+      if (!raw) return;
+      const obj = safeParseJSON(raw, null);
+      if (!obj || typeof obj !== "object") return;
+
+      if (obj.settings && typeof obj.settings === "object") {
+        settings.mode = obj.settings.mode || settings.mode;
+        settings.humanSide = obj.settings.humanSide || settings.humanSide;
+        settings.strategyTeam1 = obj.settings.strategyTeam1 || settings.strategyTeam1;
+        settings.strategyTeam2 = obj.settings.strategyTeam2 || settings.strategyTeam2;
+        settings.showPlanning = obj.settings.showPlanning != null ? !!obj.settings.showPlanning : settings.showPlanning;
+      }
+
+      if (obj.state && typeof obj.state === "object") {
+        // we load only safe fields; captains and pool are kept
+        state.status = obj.state.status || "idle";
+        state.currentPickIndex = typeof obj.state.currentPickIndex === "number" ? obj.state.currentPickIndex : 0;
+        state.team1 = obj.state.team1 || state.team1;
+        state.team2 = obj.state.team2 || state.team2;
+        state.picks = Array.isArray(obj.state.picks) ? obj.state.picks : [];
+        state.pool = obj.state.pool || state.pool;
+      }
+    }
+
+    function resetAll() {
+      state.status = "idle";
+      state.currentPickIndex = 0;
+      state.team1.captain = null;
+      state.team2.captain = null;
+      state.team1.players = [];
+      state.team2.players = [];
+      state.picks = [];
+      state.pool = { inPool: {} };
+      saveDraftLocal();
+      renderAll();
+    }
+
+    function resetDraftOnly() {
+      state.status = "idle";
+      state.currentPickIndex = 0;
+      state.picks = [];
+      // Keep captains and pool
+      rebuildCaptainPlayers();
+      saveDraftLocal();
+      renderAll();
+    }
+
+    function rebuildCaptainPlayers() {
+      state.team1.players = [];
+      state.team2.players = [];
+
+      const cap1 = state.team1.captain;
+      const cap2 = state.team2.captain;
+      if (cap1) {
+        const p = dataModule.getPlayerByName(cap1);
+        if (p) state.team1.players.push(p);
+      }
+      if (cap2) {
+        const p = dataModule.getPlayerByName(cap2);
+        if (p) state.team2.players.push(p);
+      }
+    }
+
+    function ensurePoolMap() {
+      if (!state.pool || !state.pool.inPool) {
+        state.pool = { inPool: {} };
+      }
+    }
+
+    function handleModeChange() {
+      const modeSel = $("offline-mode-select");
+      if (!modeSel) return;
+      settings.mode = modeSel.value || "human_vs_ai";
+
+      // Human side row
+      const sideRow = $("offline-human-side-row");
+      if (sideRow) {
+        sideRow.style.display = settings.mode === "human_vs_ai" ? "" : "none";
+      }
+
+      // Strategy labels (mode-dependent semantics)
+      updateStrategyLabelsForMode();
+
+      // Mode hint
+      const hintEl = $("offline-mode-hint");
+      if (hintEl) {
+        if (settings.mode === "human_vs_ai") {
+          setText(hintEl, "Human vs AI: человек пикает за свою сторону, ИИ пикает за вторую.");
+        } else if (settings.mode === "ai_vs_ai") {
+          setText(hintEl, "AI vs AI: клики отключены, обе стороны пикает ИИ.");
+        } else {
+          setText(hintEl, "Manual: человек пикает за обе стороны по очереди, подсказки активны для обеих команд.");
+        }
+      }
+
+      resetDraftOnly();
+    }
+
+    function updateStrategyLabelsForMode() {
+      const l1 = $("offline-strategy-team1-label");
+      const l2 = $("offline-strategy-team2-label");
+
+      if (!l1 || !l2) return;
+
+      if (settings.mode === "manual") {
+        l1.textContent = i18nModule.getLanguage() === "en" ? "Hint strategy Team1" : "Стратегия подсказок Team1";
+        l2.textContent = i18nModule.getLanguage() === "en" ? "Hint strategy Team2" : "Стратегия подсказок Team2";
+      } else if (settings.mode === "human_vs_ai") {
+        // Human side uses hints; AI side uses draft strategy.
+        const human = settings.humanSide;
+        if (human === "team1") {
+          l1.textContent = i18nModule.getLanguage() === "en" ? "Hint strategy (Human Team1)" : "Стратегия подсказок (человек Team1)";
+          l2.textContent = i18nModule.getLanguage() === "en" ? "AI draft strategy (AI Team2)" : "Стратегия ИИ драфта (ИИ Team2)";
+        } else {
+          l1.textContent = i18nModule.getLanguage() === "en" ? "AI draft strategy (AI Team1)" : "Стратегия ИИ драфта (ИИ Team1)";
+          l2.textContent = i18nModule.getLanguage() === "en" ? "Hint strategy (Human Team2)" : "Стратегия подсказок (человек Team2)";
+        }
+      } else {
+        l1.textContent = i18nModule.getLanguage() === "en" ? "AI draft strategy Team1" : "Стратегия ИИ драфта Team1";
+        l2.textContent = i18nModule.getLanguage() === "en" ? "AI draft strategy Team2" : "Стратегия ИИ драфта Team2";
+      }
+    }
+
+    function initSettingsUI() {
+      const modeSel = $("offline-mode-select");
+      const sideSel = $("offline-human-side-select");
+      const s1 = $("offline-strategy-team1-select");
+      const s2 = $("offline-strategy-team2-select");
+      const resetDraftBtn = $("offline-reset-draft-btn");
+      const resetAllBtn = $("offline-reset-all-btn");
+      const showPlanCb = $("offline-show-planning-checkbox");
+
+      if (modeSel) {
+        modeSel.value = settings.mode;
+        modeSel.addEventListener("change", handleModeChange);
+      }
+
+      if (sideSel) {
+        sideSel.value = settings.humanSide;
+        sideSel.addEventListener("change", function () {
+          settings.humanSide = sideSel.value || "team1";
+          updateStrategyLabelsForMode();
+          resetDraftOnly();
+        });
+      }
+
+      // fill strategy selects
+      const keys = aiModule.getStrategyKeyListSafe();
+      function fillStrategySelect(sel) {
+        if (!sel) return;
+        sel.innerHTML = "";
+        keys.forEach((k) => {
+          const opt = document.createElement("option");
+          opt.value = k;
+          opt.textContent = k;
+          sel.appendChild(opt);
+        });
+      }
+      fillStrategySelect(s1);
+      fillStrategySelect(s2);
+
+      if (s1) {
+        s1.value = settings.strategyTeam1;
+        s1.addEventListener("change", function () {
+          settings.strategyTeam1 = s1.value;
+          resetDraftOnly();
+        });
+      }
+      if (s2) {
+        s2.value = settings.strategyTeam2;
+        s2.addEventListener("change", function () {
+          settings.strategyTeam2 = s2.value;
+          resetDraftOnly();
+        });
+      }
+
+      if (resetDraftBtn) resetDraftBtn.addEventListener("click", resetDraftOnly);
+      if (resetAllBtn) resetAllBtn.addEventListener("click", resetAll);
+
+      if (showPlanCb) {
+        showPlanCb.checked = !!settings.showPlanning;
+        showPlanCb.addEventListener("change", function () {
+          settings.showPlanning = !!showPlanCb.checked;
+          renderHintsAndPlanning();
+          saveDraftLocal();
+        });
+      }
+
+      // side row visibility
+      const sideRow = $("offline-human-side-row");
+      if (sideRow) {
+        sideRow.style.display = settings.mode === "human_vs_ai" ? "" : "none";
+      }
+
+      updateStrategyLabelsForMode();
+      handleModeChange();
+    }
+
+    function renderCaptainsSelectors() {
+      const players = dataModule.getPlayers().slice().sort((a, b) => a.name.localeCompare(b.name));
+
+      const search1 = $("offline-captain1-search");
+      const search2 = $("offline-captain2-search");
+      const sel1 = $("offline-captain1-select");
+      const sel2 = $("offline-captain2-select");
+
+      function filterBy(searchStr) {
+        const s = String(searchStr || "").toLowerCase().trim();
+        if (!s) return players;
+        return players.filter((p) => String(p.name).toLowerCase().indexOf(s) !== -1);
+      }
+
+      function fillSelect(sel, list, current) {
+        if (!sel) return;
+        const prev = current || sel.value;
+        sel.innerHTML = "";
+        list.forEach((p) => {
+          const opt = document.createElement("option");
+          opt.value = p.name;
+          opt.textContent = p.name + " (" + p.tier + ", MMR " + p.mmr + ")";
+          sel.appendChild(opt);
+        });
+        if (prev) sel.value = prev;
+      }
+
+      fillSelect(sel1, players, state.team1.captain);
+      fillSelect(sel2, players, state.team2.captain);
+
+      if (search1) {
+        search1.value = "";
+        search1.addEventListener("input", function () {
+          fillSelect(sel1, filterBy(search1.value), state.team1.captain);
+        });
+      }
+      if (search2) {
+        search2.value = "";
+        search2.addEventListener("input", function () {
+          fillSelect(sel2, filterBy(search2.value), state.team2.captain);
+        });
+      }
+
+      if (sel1) {
+        sel1.addEventListener("change", function () {
+          handleCaptainChange("team1");
+        });
+      }
+      if (sel2) {
+        sel2.addEventListener("change", function () {
+          handleCaptainChange("team2");
+        });
+      }
+    }
+
+    function handleCaptainChange(teamKey) {
+      const sel1 = $("offline-captain1-select");
+      const sel2 = $("offline-captain2-select");
+      const errorEl = $("offline-captains-error");
+      if (!sel1 || !sel2) return;
+
+      const cap1 = sel1.value || null;
+      const cap2 = sel2.value || null;
+
+      if (cap1 && cap2 && cap1 === cap2) {
+        setText(errorEl, i18nModule.getLanguage() === "en"
+          ? "The same player cannot be captain of both teams."
+          : "Один и тот же игрок не может быть капитаном обеих команд."
+        );
+        // rollback
+        if (teamKey === "team1") sel1.value = state.team1.captain || "";
+        else sel2.value = state.team2.captain || "";
+        return;
+      } else {
+        setText(errorEl, "");
+      }
+
+      state.team1.captain = cap1;
+      state.team2.captain = cap2;
+
+      // Captains should not be in pool
+      ensurePoolMap();
+      if (cap1) delete state.pool.inPool[cap1];
+      if (cap2) delete state.pool.inPool[cap2];
+
+      rebuildCaptainPlayers();
+      resetDraftOnly();
+
+      renderPoolTable();
+      renderDraftState();
+      renderAvailableList();
+      renderHintsAndPlanning();
+
+      saveDraftLocal();
+    }
+
+    function initPoolControls() {
+      const allBtn = $("offline-pool-all-btn");
+      const top20Btn = $("offline-pool-top20-btn");
+      const clearBtn = $("offline-pool-clear-btn");
+
+      ensurePoolMap();
+
+      if (allBtn) {
+        allBtn.addEventListener("click", function () {
+          const inPool = state.pool.inPool;
+          dataModule.getPlayers().forEach((p) => {
+            if (p.name !== state.team1.captain && p.name !== state.team2.captain) {
+              inPool[p.name] = true;
+            }
+          });
+          renderPoolTable();
+          renderAvailableList();
+          renderHintsAndPlanning();
+          saveDraftLocal();
+        });
+      }
+
+      if (top20Btn) {
+        top20Btn.addEventListener("click", function () {
+          const inPool = state.pool.inPool;
+          Object.keys(inPool).forEach((k) => delete inPool[k]);
+
+          const sorted = dataModule.getPlayers().slice().sort((a, b) => (b.mmr || 0) - (a.mmr || 0));
+          const filtered = sorted.filter((p) => p.name !== state.team1.captain && p.name !== state.team2.captain);
+          const top20 = filtered.slice(0, 20);
+          top20.forEach((p) => { inPool[p.name] = true; });
+
+          renderPoolTable();
+          renderAvailableList();
+          renderHintsAndPlanning();
+          saveDraftLocal();
+        });
+      }
+
+      if (clearBtn) {
+        clearBtn.addEventListener("click", function () {
+          const inPool = state.pool.inPool;
+          Object.keys(inPool).forEach((k) => delete inPool[k]);
+          renderPoolTable();
+          renderAvailableList();
+          renderHintsAndPlanning();
+          saveDraftLocal();
+        });
+      }
+    }
+
+    function renderPoolTable() {
+      ensurePoolMap();
+      const tbody = $("offline-pool-table")?.querySelector("tbody");
+      if (!tbody) return;
+
+      const players = dataModule.getPlayers().slice().sort((a, b) => (b.mmr || 0) - (a.mmr || 0));
+      const inPool = state.pool.inPool;
+
+      tbody.innerHTML = "";
+      players.forEach((p) => {
+        const tr = document.createElement("tr");
+
+        const tdCheck = document.createElement("td");
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = !!inPool[p.name];
+
+        const isCaptain = (p.name === state.team1.captain || p.name === state.team2.captain);
+        if (isCaptain) cb.disabled = true;
+
+        cb.addEventListener("change", function () {
+          if (isCaptain) {
+            cb.checked = false;
+            return;
+          }
+          if (cb.checked) inPool[p.name] = true;
+          else delete inPool[p.name];
+
+          renderAvailableList();
+          renderHintsAndPlanning();
+          saveDraftLocal();
+        });
+
+        tdCheck.appendChild(cb);
+        tr.appendChild(tdCheck);
+
+        const tdName = document.createElement("td");
+        tdName.textContent = p.name;
+        tr.appendChild(tdName);
+
+        const tdTier = document.createElement("td");
+        tdTier.textContent = p.tier;
+        tr.appendChild(tdTier);
+
+        const tdMmr = document.createElement("td");
+        tdMmr.textContent = String(p.mmr);
+        tr.appendChild(tdMmr);
+
+        const tdDpm = document.createElement("td");
+        tdDpm.textContent = String(p.dpm);
+        tr.appendChild(tdDpm);
+
+        const tdRoles = document.createElement("td");
+        tdRoles.textContent = (p.roles || []).map((r) => i18nModule.roleLabel(r)).join(", ");
+        tr.appendChild(tdRoles);
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    function getPickedNameSet() {
+      const set = {};
+      (state.team1.players || []).forEach((p) => { set[p.name] = true; });
+      (state.team2.players || []).forEach((p) => { set[p.name] = true; });
+      return set;
+    }
+
+    function getAvailablePlayers() {
+      ensurePoolMap();
+      const inPool = state.pool.inPool || {};
+      const picked = getPickedNameSet();
+
+      const all = dataModule.getPlayers();
+      return all.filter((p) => {
+        if (!inPool[p.name]) return false;
+        if (picked[p.name]) return false;
+        if (p.name === state.team1.captain || p.name === state.team2.captain) return false;
+        return true;
+      });
+    }
+
+    function ensureDraftStarted() {
+      if (!state.team1.captain || !state.team2.captain) return false;
+
+      if (state.status === "idle") {
+        state.status = "draft";
+        state.currentPickIndex = 0;
+        state.picks = [];
+
+        rebuildCaptainPlayers();
+      }
+      return true;
+    }
+
+    function getCurrentPickMeta() {
+      if (state.currentPickIndex < 0 || state.currentPickIndex >= DRAFT_ORDER.length) return null;
+      return DRAFT_ORDER[state.currentPickIndex];
+    }
+
+    function applyPick(teamKey, player) {
+      if (!player) return;
+
+      if (teamKey === "team1") state.team1.players.push(player);
+      else state.team2.players.push(player);
+
+      state.picks.push({ team: teamKey, playerName: player.name });
+      state.currentPickIndex += 1;
+
+      if (state.currentPickIndex >= DRAFT_ORDER.length) {
+        state.status = "finished";
+      } else {
+        state.status = "draft";
+      }
+
+      saveDraftLocal();
+    }
+
+    function canHumanClickNow() {
+      if (settings.mode === "ai_vs_ai") return false;
+
+      const meta = getCurrentPickMeta();
+      if (!meta) return false;
+
+      if (settings.mode === "manual") return true;
+
+      // human_vs_ai: human can click only for its side
+      if (settings.mode === "human_vs_ai") {
+        return meta.team === settings.humanSide;
+      }
+      return false;
+    }
+
+    function runAiIfNeeded() {
+      if (!ensureDraftStarted()) return;
+
+      if (state.status !== "draft") {
+        renderAll();
+        return;
+      }
+
+      const mode = settings.mode;
+      const meta = getCurrentPickMeta();
+      if (!meta) return;
+
+      const available = getAvailablePlayers();
+      if (!available.length) {
+        // no candidates -> skip
+        state.currentPickIndex += 1;
+        if (state.currentPickIndex >= DRAFT_ORDER.length) state.status = "finished";
+        saveDraftLocal();
+        renderAll();
+        return;
+      }
+
+      if (mode === "ai_vs_ai") {
+        // Both sides AI, loop through
+        const teamKey = meta.team;
+        const strat = teamKey === "team1" ? settings.strategyTeam1 : settings.strategyTeam2;
+        const own = teamKey === "team1" ? state.team1.players : state.team2.players;
+        const enemy = teamKey === "team1" ? state.team2.players : state.team1.players;
+
+        const picked = aiModule.pickPlayerAi(available, {
+          ownTeamPlayers: own,
+          enemyTeamPlayers: enemy,
+          availablePlayers: available,
+          strategyKey: strat
+        });
+
+        if (picked) applyPick(teamKey, picked);
+
+        renderAll();
+
+        if (state.status === "draft") {
+          setTimeout(runAiIfNeeded, 80);
+        }
+        return;
+      }
+
+      if (mode === "human_vs_ai") {
+        const isHumanTurn = meta.team === settings.humanSide;
+        if (isHumanTurn) {
+          renderAll();
           return;
         }
-        onlineState.isAdmin = true;
+
+        const teamKey = meta.team;
+        const strat = teamKey === "team1" ? settings.strategyTeam1 : settings.strategyTeam2;
+        const own = teamKey === "team1" ? state.team1.players : state.team2.players;
+        const enemy = teamKey === "team1" ? state.team2.players : state.team1.players;
+
+        const picked = aiModule.pickPlayerAi(available, {
+          ownTeamPlayers: own,
+          enemyTeamPlayers: enemy,
+          availablePlayers: available,
+          strategyKey: strat
+        });
+
+        if (picked) applyPick(teamKey, picked);
+        renderAll();
       }
-      adminDeleteRoom(r.id, r.code);
-    });
-    row.appendChild(delBtn);
+    }
 
-    listEl.appendChild(row);
-  });
-}
+    function handleAvailableClick(playerName) {
+      if (!ensureDraftStarted()) return;
+      if (state.status !== "draft") return;
 
-async function adminDeleteRoom(roomId, code) {
-  if (!onlineState.isAdmin) {
-    alert("Нужно подтвердить админ-пароль, чтобы удалять комнаты.");
-    return;
-  }
-  if (!confirm(`Удалить комнату ${code}?`)) return;
-  const supabase = initSupabase();
-  await supabase.from("draft_state").delete().eq("room_id", roomId);
-  const { error } = await supabase.from("rooms").delete().eq("id", roomId);
-  if (error) {
-    alert("Не удалось удалить комнату.");
-    return;
-  }
-  refreshOnlineRooms();
-}
+      const player = dataModule.getPlayerByName(playerName);
+      if (!player) return;
 
-async function deleteOnlineRoom() {
-  if (!onlineState.isCreator || !onlineState.room) return;
-  if (!confirm("Удалить комнату и всех участников?")) return;
-  const supabase = initSupabase();
-  await supabase.from("draft_state").delete().eq("room_id", onlineState.room.id);
-  const { error } = await supabase
-    .from("rooms")
-    .delete()
-    .eq("id", onlineState.room.id);
-  if (error) {
-    alert("Не удалось удалить комнату");
-    return;
-  }
-  onlineState.room = null;
-  onlineState.isCreator = false;
-  onlineState.draft = null;
-  $("online-room-section").classList.add("hidden");
-  $("online-create-result").textContent = "Комната удалена.";
-  refreshOnlineRooms();
-}
+      const meta = getCurrentPickMeta();
+      if (!meta) return;
 
-function renderOnlinePool() {
-  const box = $("online-pool-list");
-  const draft = ensureOnlineDraftState();
-  box.innerHTML = "";
-  // удаляем капитанов из пула на всякий случай, чтобы их нельзя было взять дважды
-  draft.pool = (draft.pool || []).filter(n => n !== draft.captain1 && n !== draft.captain2);
-  const poolSet = new Set(draft.pool || []);
-  const cap1 = draft.captain1;
-  const cap2 = draft.captain2;
-  players.forEach(p => {
-    const isCaptain = p.name === cap1 || p.name === cap2;
-    const row = document.createElement("div");
-    row.className = "player-row" + (poolSet.has(p.name) ? " selected" : "") + (isCaptain ? " disabled" : "");
-    const tierClass = "player-tier-" + (p.tier || "D");
-    row.innerHTML = `
-      <div>
-        <span class="player-name ${tierClass}">${p.name}</span>
-        <span class="player-info">[${p.tier||"D"}] MMR: ${round(p.mmr)}, DPM: ${round(p.dpm)}${isCaptain ? " — капитан" : ""}</span>
-      </div>
-    `;
-    if (onlineState.isCreator && !isCaptain) {
-      row.addEventListener("click", () => {
-        if (poolSet.has(p.name)) {
-          draft.pool = draft.pool.filter(n => n !== p.name);
-        } else {
-          draft.pool.push(p.name);
+      // Manual or human turn in Human vs AI
+      if (!canHumanClickNow()) return;
+
+      applyPick(meta.team, player);
+      renderAll();
+
+      if (settings.mode === "human_vs_ai") {
+        setTimeout(runAiIfNeeded, 50);
+      }
+    }
+
+    function renderDraftState() {
+      const statusEl = $("offline-draft-status");
+      const cap1El = $("offline-team1-captain-name");
+      const cap2El = $("offline-team2-captain-name");
+      const list1 = $("offline-team1-list");
+      const list2 = $("offline-team2-list");
+      const orderEl = $("offline-draft-order");
+
+      setText(cap1El, state.team1.captain || "—");
+      setText(cap2El, state.team2.captain || "—");
+
+      if (list1) {
+        list1.innerHTML = "";
+        if (state.team1.captain) {
+          const li = document.createElement("li");
+          li.className = "captain-slot";
+          li.textContent = (i18nModule.getLanguage() === "en" ? "Captain: " : "Капитан: ") + state.team1.captain;
+          list1.appendChild(li);
         }
-        renderOnlinePool();
+        (state.team1.players || []).forEach((p) => {
+          if (p.name === state.team1.captain) return;
+          const li = document.createElement("li");
+          li.appendChild(document.createTextNode(p.name));
+          const right = document.createElement("span");
+          right.textContent = p.tier + " • MMR " + p.mmr + " • DPM " + p.dpm;
+          li.appendChild(right);
+          list1.appendChild(li);
+        });
+      }
+
+      if (list2) {
+        list2.innerHTML = "";
+        if (state.team2.captain) {
+          const li = document.createElement("li");
+          li.className = "captain-slot";
+          li.textContent = (i18nModule.getLanguage() === "en" ? "Captain: " : "Капитан: ") + state.team2.captain;
+          list2.appendChild(li);
+        }
+        (state.team2.players || []).forEach((p) => {
+          if (p.name === state.team2.captain) return;
+          const li = document.createElement("li");
+          li.appendChild(document.createTextNode(p.name));
+          const right = document.createElement("span");
+          right.textContent = p.tier + " • MMR " + p.mmr + " • DPM " + p.dpm;
+          li.appendChild(right);
+          list2.appendChild(li);
+        });
+      }
+
+      if (orderEl) {
+        orderEl.innerHTML = "";
+        DRAFT_ORDER.forEach((step, idx) => {
+          const li = document.createElement("li");
+          const teamLabel = step.team === "team1" ? (i18nModule.getLanguage() === "en" ? "Team 1" : "Команда 1") : (i18nModule.getLanguage() === "en" ? "Team 2" : "Команда 2");
+          li.textContent = "Pick " + step.pick + ": " + teamLabel;
+          if (idx === state.currentPickIndex && state.status === "draft") {
+            li.classList.add("current");
+          }
+          orderEl.appendChild(li);
+        });
+      }
+
+      if (statusEl) {
+        if (!state.team1.captain || !state.team2.captain) {
+          setText(statusEl, i18nModule.getLanguage() === "en"
+            ? "Select captains for both teams, build the pool, then start drafting (click an available player)."
+            : "Выберите капитанов для обеих команд, наберите пул, затем начните драфт (клик по доступному игроку)."
+          );
+        } else if (state.status === "idle") {
+          setText(statusEl, i18nModule.getLanguage() === "en"
+            ? "Draft not started. Clicking an available player will make the first pick."
+            : "Драфт ещё не начат. Клик по доступному игроку выполнит первый пик."
+          );
+        } else if (state.status === "draft") {
+          const meta = getCurrentPickMeta();
+          if (meta) {
+            const teamLabel = meta.team === "team1" ? (i18nModule.getLanguage() === "en" ? "Team 1" : "Команда 1") : (i18nModule.getLanguage() === "en" ? "Team 2" : "Команда 2");
+            setText(statusEl, (i18nModule.getLanguage() === "en"
+              ? "Current turn: "
+              : "Текущий ход: ") + teamLabel + ". Pick #" + meta.pick + " / " + DRAFT_ORDER.length + "."
+            );
+          } else {
+            setText(statusEl, i18nModule.getLanguage() === "en" ? "Draft in progress." : "Драфт в процессе.");
+          }
+        } else {
+          setText(statusEl, i18nModule.getLanguage() === "en" ? "Draft finished. You can export the result below." : "Драфт завершён. Можно экспортировать результат ниже.");
+        }
+      }
+    }
+
+    function renderAvailableList() {
+      const list = $("offline-available-list");
+      const note = $("offline-available-note");
+      if (!list) return;
+
+      const available = getAvailablePlayers();
+      list.innerHTML = "";
+
+      if (!available.length) {
+        list.textContent = i18nModule.getLanguage() === "en"
+          ? "No available players (check pool/captains/draft state)."
+          : "Нет доступных игроков (проверьте пул/капитанов/состояние драфта).";
+        return;
+      }
+
+      const meta = getCurrentPickMeta();
+      const mode = settings.mode;
+
+      const allowClick = canHumanClickNow();
+
+      // Sorting:
+      // - Manual: by MMR desc (as per spec)
+      // - Otherwise: by AI value for the CURRENT team turn (if draft started)
+      let sorted = available.slice();
+
+      if (mode === "manual" || !meta || state.status !== "draft") {
+        sorted.sort((a, b) => (b.mmr || 0) - (a.mmr || 0));
+      } else {
+        const teamKey = meta.team;
+        const strat = teamKey === "team1" ? settings.strategyTeam1 : settings.strategyTeam2;
+        const own = teamKey === "team1" ? state.team1.players : state.team2.players;
+        const enemy = teamKey === "team1" ? state.team2.players : state.team1.players;
+
+        const scored = sorted.map((p) => {
+          const r = aiModule.calcPlayerValue(p, {
+            ownTeamPlayers: own,
+            enemyTeamPlayers: enemy,
+            availablePlayers: available,
+            strategyKey: strat
+          });
+          return { player: p, value: r.value };
+        });
+        scored.sort((a, b) => b.value - a.value);
+        sorted = scored.map((x) => x.player);
+      }
+
+      if (note) {
+        if (mode === "manual") {
+          setText(note, i18nModule.getLanguage() === "en" ? "Sorted by MMR (Manual mode)." : "Сортировка по MMR (Manual).");
+        } else {
+          setText(note, i18nModule.getLanguage() === "en" ? "Sorted by AI value for the current turn." : "Сортировка по value ИИ для текущего хода.");
+        }
+      }
+
+      sorted.forEach((p) => {
+        const row = document.createElement("div");
+        row.className = "players-list-item";
+
+        if (!allowClick && mode !== "manual") {
+          row.classList.add("disabled");
+        }
+
+        const main = document.createElement("div");
+        main.className = "players-list-item-main";
+
+        const name = document.createElement("span");
+        name.className = "players-list-item-name";
+        name.textContent = p.name;
+
+        const metaLine = document.createElement("span");
+        metaLine.className = "players-list-item-meta";
+        metaLine.textContent =
+          p.tier + " • MMR " + p.mmr + " • DPM " + p.dpm + " • " + (p.roles || []).map((r) => i18nModule.roleLabel(r)).join(", ");
+
+        main.appendChild(name);
+        main.appendChild(metaLine);
+
+        const score = document.createElement("span");
+        score.className = "players-list-item-score";
+
+        if (mode === "manual" || !meta || state.status !== "draft") {
+          score.textContent = "MMR " + p.mmr;
+        } else {
+          const teamKey = meta.team;
+          const strat = teamKey === "team1" ? settings.strategyTeam1 : settings.strategyTeam2;
+          const own = teamKey === "team1" ? state.team1.players : state.team2.players;
+          const enemy = teamKey === "team1" ? state.team2.players : state.team1.players;
+          const r = aiModule.calcPlayerValue(p, {
+            ownTeamPlayers: own,
+            enemyTeamPlayers: enemy,
+            availablePlayers: available,
+            strategyKey: strat
+          });
+          score.textContent = "AI " + r.value.toFixed(2);
+        }
+
+        row.appendChild(main);
+        row.appendChild(score);
+
+        if (allowClick) {
+          row.addEventListener("click", function () {
+            handleAvailableClick(p.name);
+          });
+        }
+
+        list.appendChild(row);
       });
     }
-    box.appendChild(row);
-  });
-}
 
-async function renderOnlineParticipants() {
-  const supabase = initSupabase();
-  if (!onlineState.room) return;
-  const listEl = $("online-participants");
-  const creatorPanel = $("online-creator-panel");
-  listEl.innerHTML = "";
-  let parts = [];
-  try {
-    const { data, error } = await supabase
-      .from("room_participants")
-      .select("*")
-      .eq("room_id", onlineState.room.id)
-      .order("created_at", { ascending: true });
-    if (error) throw error;
-    parts = data || [];
-    onlineState.participants = parts;
-  } catch (e) {
-    console.warn("Ошибка загрузки участников", e);
-    listEl.innerHTML = "<div class='hint'>Не удалось загрузить участников. Попробуйте обновить комнату.</div>";
-    if (creatorPanel) creatorPanel.classList.add("hidden");
-    return;
-  }
-  if (!parts.length) {
-    listEl.innerHTML = "<div class='hint'>Пока никто не присоединился.</div>";
-  }
-  parts.forEach(p => {
-    const row = document.createElement("div");
-    row.className = "participant-row";
-    const isMe = onlineState.myParticipantId === p.id;
-    if (isMe && p.role && p.role !== onlineState.myRole) {
-      onlineState.myRole = p.role;
+    function renderHintsAndPlanning() {
+      const showOpp = dataModule.getAiSettings().formula.hints?.showOpponentHintsInHumanVsAI;
+      const mode = settings.mode;
+
+      const hint1Best = $("offline-hint-team1-best");
+      const hint1Alts = $("offline-hint-team1-alts");
+      const hint2Best = $("offline-hint-team2-best");
+      const hint2Alts = $("offline-hint-team2-alts");
+
+      const plan1 = $("offline-plan-team1");
+      const plan2 = $("offline-plan-team2");
+
+      const hintsNote = $("offline-hints-note");
+
+      if (hint1Best) hint1Best.innerHTML = "";
+      if (hint1Alts) hint1Alts.innerHTML = "";
+      if (hint2Best) hint2Best.innerHTML = "";
+      if (hint2Alts) hint2Alts.innerHTML = "";
+      if (plan1) plan1.innerHTML = "";
+      if (plan2) plan2.innerHTML = "";
+
+      if (!ensureDraftStarted()) {
+        if (hintsNote) {
+          setText(hintsNote, i18nModule.getLanguage() === "en"
+            ? "Hints will appear after selecting captains and enabling a player pool."
+            : "Подсказки появятся после выбора капитанов и набора пула."
+          );
+        }
+        return;
+      }
+
+      const available = getAvailablePlayers();
+      if (!available.length) {
+        if (hintsNote) setText(hintsNote, "");
+        return;
+      }
+
+      const showPlanning = !!settings.showPlanning;
+      const aiSettings = dataModule.getAiSettings();
+      const hintsCfg = aiSettings.formula.hints || {};
+
+      // Team1 context
+      const ctx1 = {
+        ownTeamPlayers: state.team1.players,
+        enemyTeamPlayers: state.team2.players,
+        availablePlayers: available,
+        strategyKey: settings.strategyTeam1
+      };
+
+      // Team2 context
+      const ctx2 = {
+        ownTeamPlayers: state.team2.players,
+        enemyTeamPlayers: state.team1.players,
+        availablePlayers: available,
+        strategyKey: settings.strategyTeam2
+      };
+
+      // Human vs AI: optionally hide opponent hints
+      const showTeam1 = (mode !== "human_vs_ai") || (settings.humanSide === "team1") || !!showOpp;
+      const showTeam2 = (mode !== "human_vs_ai") || (settings.humanSide === "team2") || !!showOpp;
+
+      // Recommendations
+      if (showTeam1) {
+        const rec1 = aiModule.getRecommendations(available, ctx1);
+        renderHintPanel(hint1Best, hint1Alts, rec1, "team1");
+      } else {
+        if (hint1Best) hint1Best.textContent = i18nModule.getLanguage() === "en" ? "Hidden (Human vs AI)" : "Скрыто (Human vs AI)";
+      }
+
+      if (showTeam2) {
+        const rec2 = aiModule.getRecommendations(available, ctx2);
+        renderHintPanel(hint2Best, hint2Alts, rec2, "team2");
+      } else {
+        if (hint2Best) hint2Best.textContent = i18nModule.getLanguage() === "en" ? "Hidden (Human vs AI)" : "Скрыто (Human vs AI)";
+      }
+
+      // Planning (long plan) for each team
+      if (showPlanning) {
+        if (plan1 && showTeam1) {
+          const planObj = aiModule.simulatePlan(buildDraftStateSnapshot(), settings.mode, "team1");
+          renderPlanBlock(plan1, planObj, "team1");
+        }
+        if (plan2 && showTeam2) {
+          const planObj = aiModule.simulatePlan(buildDraftStateSnapshot(), settings.mode, "team2");
+          renderPlanBlock(plan2, planObj, "team2");
+        }
+      }
+
+      if (hintsNote) {
+        if (mode === "manual") {
+          setText(hintsNote, i18nModule.getLanguage() === "en"
+            ? "Manual mode: you pick for both teams. Hints are shown for both sides."
+            : "Manual: вы пикаете за обе команды. Подсказки отображаются для обеих сторон."
+          );
+        } else if (mode === "human_vs_ai") {
+          setText(hintsNote, i18nModule.getLanguage() === "en"
+            ? "Human vs AI: hints are optimized for the selected strategies. Tier/MMR dominate by default."
+            : "Human vs AI: подсказки строятся по выбранным стратегиям. Tier/MMR доминируют по умолчанию."
+          );
+        } else {
+          setText(hintsNote, i18nModule.getLanguage() === "en"
+            ? "AI vs AI: AI plays both sides. Hints reflect current evaluation and planning."
+            : "AI vs AI: ИИ играет за обе стороны. Подсказки отражают оценку и планирование."
+          );
+        }
+      }
     }
-    row.innerHTML = `
-      <span>${p.nickname}${isMe ? " (ты)" : ""}</span>
-      <span class="participant-role">${p.role}</span>
-    `;
-    listEl.appendChild(row);
-  });
 
-  updateOnlineCaptainSelectors();
+    function renderHintPanel(bestEl, altsEl, rec, teamKey) {
+      if (!bestEl || !altsEl) return;
+      bestEl.innerHTML = "";
+      altsEl.innerHTML = "";
 
-  if (onlineState.isCreator) {
-    creatorPanel.classList.remove("hidden");
-    creatorPanel.innerHTML = `
-      <div><strong>Панель создателя комнаты</strong></div>
-      <div class="hint small">Создатель остаётся капитаном 1. Здесь можно управлять пулом и стартовать драфт.</div>
-    `;
-  } else {
-    creatorPanel.classList.add("hidden");
-  }
-}
+      if (!rec || !rec.best) {
+        bestEl.textContent = i18nModule.getLanguage() === "en" ? "No recommendations." : "Нет рекомендаций.";
+        return;
+      }
 
-async function refreshOnlineRoom() {
-  if (!onlineState.room) return;
-  await renderOnlineParticipants();
-  const loaded = await loadDraftState(onlineState.room.id);
-  if (loaded) {
-    onlineState.draft = loaded;
-    stripCaptainsFromDraft(onlineState.draft);
-    renderOnlinePool();
-    renderOnlineDraft();
-  }
-}
+      const best = rec.best;
+      const bLine = document.createElement("div");
+      const reasons = (best.reasons || []).map((r) => i18nModule.reasonToText(r)).join("; ");
+      bLine.textContent = (i18nModule.getLanguage() === "en" ? "Best: " : "Лучший: ")
+        + best.player.name + " [" + best.player.tier + "] "
+        + "(MMR " + best.player.mmr + ") "
+        + "— " + reasons
+        + " | AI " + best.value.toFixed(2);
+      bestEl.appendChild(bLine);
 
-function startOnlineDraft() {
-  const errBox = $("online-error");
-  errBox.textContent = "";
-  if (!onlineState.isCreator || !onlineState.room) {
-    errBox.textContent = "Только создатель комнаты может запускать драфт.";
-    return;
-  }
-  const d = ensureOnlineDraftState();
-  d.status = DRAFT_STATUS.draft;
-  d.map = $("online-map-select").value;
-  d.mode = $("online-mode-select").value;
-  d.aiStrategy1 = $("online-ai-strategy-1").value;
-  d.aiStrategy2 = $("online-ai-strategy-2").value;
-  const p1 = d.captain1Id ? getParticipantById(d.captain1Id) : null;
-  const p2 = d.captain2Id ? getParticipantById(d.captain2Id) : null;
-  d.captain1 = p1 ? p1.nickname : d.captain1;
-  d.captain2 = p2 ? p2.nickname : d.captain2;
-  const cap1 = d.captain1;
-  const cap2 = d.captain2;
-  if (!cap1 || !cap2 || d.captain1Id === d.captain2Id) {
-    errBox.textContent = "Нужно выбрать двух разных капитанов среди участников.";
-    return;
-  }
-  if (!d.pool || d.pool.length < 10) {
-    errBox.textContent = "Нужно минимум 10 игроков в пуле для матча.";
-    return;
-  }
-  stripCaptainsFromDraft(d);
-  d.available = d.pool.slice();
-  d.team1 = cap1 ? [cap1] : [];
-  d.team2 = cap2 ? [cap2] : [];
-  d.currentPickIndex = 0;
-  d.finished = false;
-
-  $("online-match-status").textContent = "Драфт идёт";
-  saveDraftState(onlineState.room.id, d);
-  renderOnlineDraft();
-}
-
-function renderOnlineDraft() {
-  const d = onlineState.draft;
-  if (!d) return;
-  const team1El = $("online-team1");
-  const team2El = $("online-team2");
-  const availEl = $("online-available");
-  const picksEl = $("online-pick-order");
-  const suggEl = $("online-suggestions");
-  const finishEl = $("online-finish");
-  const pickStatusEl = $("online-pick-status");
-  const t1CountEl = $("online-team1-count");
-  const t2CountEl = $("online-team2-count");
-
-  team1El.innerHTML = "";
-  d.team1.forEach(name => {
-    const p = players.find(pp => pp.name === name);
-    const li = document.createElement("li");
-    li.textContent = p ? `${p.name} [${p.tier}]` : name;
-    team1El.appendChild(li);
-  });
-  team2El.innerHTML = "";
-  d.team2.forEach(name => {
-    const p = players.find(pp => pp.name === name);
-    const li = document.createElement("li");
-    li.textContent = p ? `${p.name} [${p.tier}]` : name;
-    team2El.appendChild(li);
-  });
-
-  if (t1CountEl) t1CountEl.textContent = `(${d.team1.length}/5)`;
-  if (t2CountEl) t2CountEl.textContent = `(${d.team2.length}/5)`;
-
-  picksEl.innerHTML = "";
-  DRAFT_ORDER.forEach((step, idx) => {
-    const chip = document.createElement("div");
-    chip.className = "pick-chip";
-    if (idx === d.currentPickIndex) chip.classList.add("current");
-    if (step.team === "team1") chip.classList.add("team1");
-    if (step.team === "team2") chip.classList.add("team2");
-    chip.textContent = `Пик ${step.pick}: Капитан ${step.captain === "cap1" ? "1" : "2"}`;
-    picksEl.appendChild(chip);
-  });
-
-  const picksDone = Math.min(d.currentPickIndex, DRAFT_ORDER.length);
-  const picksLeft = Math.max(0, DRAFT_ORDER.length - picksDone);
-  if (pickStatusEl) {
-    const currentStep = DRAFT_ORDER[d.currentPickIndex];
-    if (!currentStep) {
-      pickStatusEl.textContent = "Драфт завершён";
-    } else {
-      pickStatusEl.textContent = `Текущий ход: Команда ${currentStep.team === "team1" ? "1" : "2"} · Пик ${picksDone + 1}/8 · Осталось: ${picksLeft}`;
+      if (rec.alternatives && rec.alternatives.length) {
+        rec.alternatives.forEach((alt, idx) => {
+          const row = document.createElement("div");
+          row.className = "ai-hint-alt-item";
+          const reasons2 = (alt.reasons || []).map((r) => i18nModule.reasonToText(r)).join("; ");
+          row.textContent = (i18nModule.getLanguage() === "en" ? "Alt " : "Альт ") + (idx + 1) + ": "
+            + alt.player.name + " [" + alt.player.tier + "] "
+            + "(MMR " + alt.player.mmr + ") "
+            + "— " + reasons2
+            + " | AI " + alt.value.toFixed(2);
+          altsEl.appendChild(row);
+        });
+      }
     }
-  }
 
-  const step = DRAFT_ORDER[d.currentPickIndex];
-  if (!d.pool.length && !d.available.length && d.team1.length + d.team2.length <= 0) {
-    availEl.innerHTML = "<div class='hint'>Драфт ещё не начат.</div>";
-    suggEl.innerHTML = "";
-    return;
-  }
-  if (!step) {
-    d.finished = true;
-    $("online-match-status").textContent = "Завершён";
-    suggEl.innerHTML = "<div class='hint'>Драфт завершён.</div>";
-    availEl.innerHTML = "<div class='hint'>Все пики распределены.</div>";
-    if (finishEl) {
-      finishEl.classList.remove("hidden");
-      finishEl.innerHTML = "<strong>Драфт завершён.</strong> Каждая команда укомплектована (капитан + 4 игрока).";
-    }
-    return;
-  }
-  if (finishEl) finishEl.classList.add("hidden");
+    function renderPlanBlock(container, planObj, teamKey) {
+      if (!container) return;
+      container.innerHTML = "";
 
-  const side = step.team;
-  const isMyTurn = (d.mode === "human_vs_human" && (
-    (side === "team1" && onlineState.myRole === "captain1") ||
-    (side === "team2" && onlineState.myRole === "captain2")
-  )) || (d.mode === "human_vs_ai" && onlineState.myRole === "captain1" && side === "team1");
+      const title = document.createElement("div");
+      title.className = "plan-title";
+      title.textContent = i18nModule.getLanguage() === "en" ? "Plan & composition progress" : "План и прогресс состава";
+      container.appendChild(title);
 
-  const availablePlayers = d.available
-    .filter(n => n !== d.captain1 && n !== d.captain2)
-    .map(name => players.find(p=>p.name===name))
-    .filter(Boolean)
-    .sort((a,b)=> (b.mmr||0)-(a.mmr||0));
+      // Composition progress
+      const stratKey = teamKey === "team1" ? settings.strategyTeam1 : settings.strategyTeam2;
+      const strat = aiModule.getStrategyByKey(stratKey);
 
-  const context = {
-    team1: d.team1,
-    team2: d.team2,
-    side,
-    enemySide: side === "team1" ? "team2" : "team1",
-    mode: d.mode,
-    strategy: getOnlineStrategyForSide(side)
-  };
-  const scored = availablePlayers.map(p => ({
-    player: p,
-    value: calcPlayerValue(p, context)
-  })).sort((a,b)=> b.value - a.value);
-  const hints = buildAiHints(scored, context);
-  let suggestionsHtml = "";
-  if (hints && hints.length) {
-    const best = hints[0];
-    const alts = hints.slice(1).map(h => h.name).join(", ");
-    suggestionsHtml = `<div><strong>Подсказка ИИ:</strong> Лучший пик: ${best.name} (${best.mmr})<br/>Альтернативы: ${alts || "—"}<br/><span class='hint small'>Стратегия: ${getOnlineStrategyForSide(side)}</span></div>`;
-  }
-  suggEl.innerHTML = suggestionsHtml;
+      const teamPlayers = teamKey === "team1" ? state.team1.players : state.team2.players;
 
-  availEl.innerHTML = "";
-  availablePlayers.forEach(p => {
-    const row = document.createElement("div");
-    const tierClass = "player-tier-" + (p.tier || "D");
-    row.className = "player-row";
-    row.innerHTML = `
-      <div>
-        <span class="player-name ${tierClass}">${p.name}</span>
-        <span class="player-info">[${p.tier||"D"}] MMR: ${round(p.mmr)}, DPM: ${round(p.dpm)}</span>
-      </div>
-    `;
-    if (isMyTurn) {
-      row.addEventListener("click", () => {
-        humanPickOnline(p.name);
+      if (strat && strat.compositionTargets) {
+        ["infantry", "tanks", "mechanical", "support"].forEach((cat) => {
+          const target = Number(strat.compositionTargets[cat] || 0);
+          if (target <= 0) return;
+          const now = aiModule.countCategoryInTeam(teamPlayers, cat);
+          const line = document.createElement("div");
+          line.className = "plan-line";
+          line.textContent = i18nModule.categoryLabel(cat) + ": " + now + " / " + target;
+          container.appendChild(line);
+        });
+      }
+
+      const planListTitle = document.createElement("div");
+      planListTitle.className = "plan-title";
+      planListTitle.textContent = i18nModule.getLanguage() === "en" ? "Projected picks (remaining)" : "Прогноз пиков (оставшиеся)";
+      container.appendChild(planListTitle);
+
+      const ul = document.createElement("ol");
+      ul.className = "plan-list";
+
+      (planObj.steps || []).forEach((s) => {
+        const li = document.createElement("li");
+        const teamLabel = s.team === "team1"
+          ? (i18nModule.getLanguage() === "en" ? "Team 1" : "Команда 1")
+          : (i18nModule.getLanguage() === "en" ? "Team 2" : "Команда 2");
+        li.textContent = "Pick " + s.pickNumber + " (" + teamLabel + "): " + s.playerName;
+        ul.appendChild(li);
       });
-    } else {
-      row.style.opacity = "0.6";
+
+      container.appendChild(ul);
     }
-    availEl.appendChild(row);
+
+    function buildDraftStateSnapshot() {
+      return {
+        currentPickIndex: state.currentPickIndex,
+        team1: { players: state.team1.players.slice(), captain: state.team1.captain },
+        team2: { players: state.team2.players.slice(), captain: state.team2.captain },
+        strategyTeam1: settings.strategyTeam1,
+        strategyTeam2: settings.strategyTeam2
+      };
+    }
+
+    function generateExportText() {
+      const textarea = $("offline-export-text");
+      if (!textarea) return;
+
+      const lines = [];
+      lines.push("Mode: " + settings.mode);
+      lines.push("");
+
+      lines.push("Team 1 (captain: " + (state.team1.captain || "—") + "):");
+      (state.team1.players || []).forEach((p) => {
+        const roles = (p.roles || []).join(", ");
+        lines.push("- " + p.name + " [" + p.tier + "] (MMR " + p.mmr + ", DPM " + p.dpm + ", roles: " + roles + ")");
+      });
+      lines.push("");
+
+      lines.push("Team 2 (captain: " + (state.team2.captain || "—") + "):");
+      (state.team2.players || []).forEach((p) => {
+        const roles = (p.roles || []).join(", ");
+        lines.push("- " + p.name + " [" + p.tier + "] (MMR " + p.mmr + ", DPM " + p.dpm + ", roles: " + roles + ")");
+      });
+      lines.push("");
+
+      lines.push("Strategy Team1: " + (settings.strategyTeam1 || "none"));
+      lines.push("Strategy Team2: " + (settings.strategyTeam2 || "none"));
+
+      textarea.value = lines.join("\n");
+    }
+
+    function initExportControls() {
+      const finishBtn = $("offline-finish-btn");
+      const copyBtn = $("offline-copy-export-btn");
+      const statusEl = $("offline-export-status");
+      const textarea = $("offline-export-text");
+
+      if (finishBtn) {
+        finishBtn.addEventListener("click", function () {
+          state.status = "finished";
+          generateExportText();
+          renderDraftState();
+          renderAvailableList();
+          renderHintsAndPlanning();
+          saveDraftLocal();
+          setText(statusEl, i18nModule.getLanguage() === "en" ? "Draft finished. Export generated." : "Драфт завершён. Экспорт сформирован.");
+        });
+      }
+
+      if (copyBtn && textarea) {
+        copyBtn.addEventListener("click", function () {
+          const txt = textarea.value || "";
+          if (!txt) return;
+
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(txt)
+              .then(() => setText(statusEl, i18nModule.getLanguage() === "en" ? "Copied." : "Скопировано."))
+              .catch(() => setText(statusEl, i18nModule.getLanguage() === "en" ? "Copy failed; copy manually." : "Не удалось скопировать; скопируйте вручную."));
+          } else {
+            textarea.select();
+            try {
+              document.execCommand("copy");
+              setText(statusEl, i18nModule.getLanguage() === "en" ? "Copied." : "Скопировано.");
+            } catch (err) {
+              setText(statusEl, i18nModule.getLanguage() === "en" ? "Copy not supported; copy manually." : "Копирование не поддерживается; скопируйте вручную.");
+            }
+          }
+        });
+      }
+    }
+
+    function renderAll() {
+      renderDraftState();
+      renderPoolTable();
+      renderAvailableList();
+      renderHintsAndPlanning();
+    }
+
+    function init() {
+      loadDraftLocal();
+
+      const keys = aiModule.getStrategyKeyListSafe();
+      if (keys.indexOf(settings.strategyTeam1) === -1) settings.strategyTeam1 = keys[0];
+      if (keys.indexOf(settings.strategyTeam2) === -1) settings.strategyTeam2 = keys[0];
+
+      initSettingsUI();
+      renderCaptainsSelectors();
+      initPoolControls();
+      initExportControls();
+
+      renderAll();
+
+      if (settings.mode === "ai_vs_ai") {
+        // Start AI loop automatically if possible
+        setTimeout(runAiIfNeeded, 100);
+      }
+    }
+
+    function onStrategiesUpdated() {
+      // refill selects
+      const s1 = $("offline-strategy-team1-select");
+      const s2 = $("offline-strategy-team2-select");
+      const keys = aiModule.getStrategyKeyListSafe();
+
+      function refill(sel, current) {
+        if (!sel) return;
+        sel.innerHTML = "";
+        keys.forEach((k) => {
+          const opt = document.createElement("option");
+          opt.value = k;
+          opt.textContent = k;
+          sel.appendChild(opt);
+        });
+        if (keys.indexOf(current) !== -1) sel.value = current;
+        else sel.value = keys[0];
+      }
+
+      refill(s1, settings.strategyTeam1);
+      refill(s2, settings.strategyTeam2);
+
+      settings.strategyTeam1 = s1 ? s1.value : settings.strategyTeam1;
+      settings.strategyTeam2 = s2 ? s2.value : settings.strategyTeam2;
+
+      resetDraftOnly();
+    }
+
+    return {
+      init,
+      renderAll,
+      onStrategiesUpdated,
+      onLanguageChanged: function () {
+        updateStrategyLabelsForMode();
+        renderAll();
+      }
+    };
+  })();
+
+  // ------------------------------------------------------
+  // --- playersModule: CRUD игроков
+  // ------------------------------------------------------
+
+  const playersModule = (function () {
+    let selectedName = null;
+
+    function initRolesGrid() {
+      const grid = $("player-edit-roles");
+      if (!grid) return;
+
+      grid.innerHTML = "";
+      ROLE_IDS.forEach((r) => {
+        const label = document.createElement("label");
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.value = r;
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(" " + i18nModule.roleLabel(r)));
+        grid.appendChild(label);
+      });
+    }
+
+    function renderList() {
+      const tbody = $("players-table")?.querySelector("tbody");
+      if (!tbody) return;
+
+      const filterName = ($("players-filter-name")?.value || "").toLowerCase().trim();
+      const filterTier = $("players-filter-tier")?.value || "";
+
+      const arr = dataModule.getPlayers().slice();
+      let filtered = arr;
+
+      if (filterName) {
+        filtered = filtered.filter((p) => String(p.name).toLowerCase().indexOf(filterName) !== -1);
+      }
+      if (filterTier) {
+        filtered = filtered.filter((p) => p.tier === filterTier);
+      }
+
+      // Sort by MMR desc
+      filtered.sort((a, b) => (b.mmr || 0) - (a.mmr || 0));
+
+      tbody.innerHTML = "";
+      filtered.forEach((p) => {
+        const tr = document.createElement("tr");
+        tr.addEventListener("click", function () {
+          selectPlayer(p.name);
+        });
+
+        const tdName = document.createElement("td");
+        tdName.textContent = p.name;
+        const tdTier = document.createElement("td");
+        tdTier.textContent = p.tier;
+        const tdMmr = document.createElement("td");
+        tdMmr.textContent = String(p.mmr);
+        const tdDpm = document.createElement("td");
+        tdDpm.textContent = String(p.dpm);
+        const tdRoles = document.createElement("td");
+        tdRoles.textContent = (p.roles || []).map((r) => i18nModule.roleLabel(r)).join(", ");
+
+        tr.appendChild(tdName);
+        tr.appendChild(tdTier);
+        tr.appendChild(tdMmr);
+        tr.appendChild(tdDpm);
+        tr.appendChild(tdRoles);
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    function fillForm(p) {
+      $("player-edit-name").value = p ? p.name : "";
+      $("player-edit-tier").value = p ? p.tier : "C";
+      $("player-edit-mmr").value = p ? p.mmr : 1200;
+      $("player-edit-dpm").value = p ? p.dpm : 15000;
+
+      const grid = $("player-edit-roles");
+      if (!grid) return;
+      const cbs = grid.querySelectorAll("input[type=checkbox]");
+      cbs.forEach((cb) => {
+        cb.checked = p && Array.isArray(p.roles) ? (p.roles.indexOf(cb.value) !== -1) : false;
+      });
+    }
+
+    function selectPlayer(name) {
+      const p = dataModule.getPlayerByName(name);
+      if (!p) return;
+      selectedName = p.name;
+      fillForm(p);
+      setText($("players-edit-status"), "");
+    }
+
+    function gatherForm() {
+      const name = $("player-edit-name").value.trim();
+      const tier = $("player-edit-tier").value;
+      const mmr = Number($("player-edit-mmr").value) || 0;
+      const dpm = Number($("player-edit-dpm").value) || 0;
+
+      const roles = [];
+      const grid = $("player-edit-roles");
+      const cbs = grid ? grid.querySelectorAll("input[type=checkbox]") : [];
+      cbs.forEach((cb) => {
+        if (cb.checked) roles.push(cb.value);
+      });
+
+      return {
+        name: name,
+        tier: tier,
+        mmr: mmr,
+        dpm: dpm,
+        roles: roles
+      };
+    }
+
+    function savePlayer() {
+      const status = $("players-edit-status");
+      const p = gatherForm();
+      if (!p.name) {
+        setText(status, i18nModule.getLanguage() === "en" ? "Name is required." : "Имя обязательно.");
+        return;
+      }
+      if (!isTier(p.tier)) {
+        setText(status, i18nModule.getLanguage() === "en" ? "Invalid tier." : "Неверный Tier.");
+        return;
+      }
+
+      const arr = dataModule.getPlayers().slice();
+      const existingIndex = arr.findIndex((x) => x.name === p.name);
+
+      // If name changed from selectedName
+      if (selectedName && selectedName !== p.name) {
+        const conflict = arr.some((x) => x.name === p.name);
+        if (conflict) {
+          setText(status, i18nModule.getLanguage() === "en" ? "Name already exists." : "Имя уже существует.");
+          return;
+        }
+        const oldIndex = arr.findIndex((x) => x.name === selectedName);
+        if (oldIndex >= 0) {
+          arr.splice(oldIndex, 1);
+        }
+      }
+
+      if (existingIndex >= 0) {
+        arr[existingIndex] = p;
+      } else {
+        arr.push(p);
+      }
+
+      dataModule.setPlayers(arr);
+      selectedName = p.name;
+
+      renderList();
+      offlineDraftModule.renderAll();
+
+      setText(status, i18nModule.getLanguage() === "en" ? "Saved." : "Сохранено.");
+    }
+
+    function deletePlayer() {
+      const status = $("players-edit-status");
+      const name = $("player-edit-name").value.trim();
+      if (!name) return;
+
+      const ok = confirm(i18nModule.getLanguage() === "en" ? "Delete player?" : "Удалить игрока?");
+      if (!ok) return;
+
+      const arr = dataModule.getPlayers().slice().filter((p) => p.name !== name);
+      dataModule.setPlayers(arr);
+      selectedName = null;
+      fillForm(null);
+
+      renderList();
+      offlineDraftModule.renderAll();
+
+      setText(status, i18nModule.getLanguage() === "en" ? "Deleted." : "Удалено.");
+    }
+
+    function addNewPlayer() {
+      selectedName = null;
+      fillForm(null);
+      setText($("players-edit-status"), i18nModule.getLanguage() === "en" ? "Create a new player and press Save." : "Создайте нового игрока и нажмите Сохранить.");
+      $("player-edit-name").focus();
+    }
+
+    function initImportExport() {
+      const exportBtn = $("players-export-btn");
+      const importBtn = $("players-import-btn");
+      const fileInput = $("players-import-file");
+      const status = $("players-status");
+
+      if (exportBtn) {
+        exportBtn.addEventListener("click", function () {
+          dataModule.exportPlayersFile();
+          setText(status, i18nModule.getLanguage() === "en" ? "Export started." : "Экспорт начат.");
+        });
+      }
+
+      if (importBtn && fileInput) {
+        importBtn.addEventListener("click", function () {
+          fileInput.click();
+        });
+        fileInput.addEventListener("change", function () {
+          const file = fileInput.files && fileInput.files[0];
+          if (!file) return;
+          readFileAsText(file)
+            .then((text) => {
+              dataModule.importPlayersText(text);
+              renderList();
+              offlineDraftModule.renderAll();
+              setText(status, i18nModule.getLanguage() === "en" ? "Imported." : "Импортировано.");
+            })
+            .catch((err) => {
+              setText(status, (i18nModule.getLanguage() === "en" ? "Import error: " : "Ошибка импорта: ") + err.message);
+            });
+        });
+      }
+    }
+
+    function bindFilters() {
+      const fn = $("players-filter-name");
+      const ft = $("players-filter-tier");
+      if (fn) fn.addEventListener("input", renderList);
+      if (ft) ft.addEventListener("change", renderList);
+    }
+
+    function initButtons() {
+      const addBtn = $("players-add-new-btn");
+      const saveBtn = $("players-save-btn");
+      const delBtn = $("players-delete-btn");
+
+      if (addBtn) addBtn.addEventListener("click", addNewPlayer);
+      if (saveBtn) saveBtn.addEventListener("click", savePlayer);
+      if (delBtn) delBtn.addEventListener("click", deletePlayer);
+    }
+
+    function onLanguageChanged() {
+      initRolesGrid();
+      renderList();
+    }
+
+    function init() {
+      initRolesGrid();
+      bindFilters();
+      initButtons();
+      initImportExport();
+
+      renderList();
+      fillForm(null);
+    }
+
+    return { init, onLanguageChanged };
+  })();
+
+  // ------------------------------------------------------
+  // --- strategiesModule: CRUD стратегий + веса + цели состава
+  // ------------------------------------------------------
+
+  const strategiesModule = (function () {
+    let selectedKey = null;
+
+    function getPack() {
+      return dataModule.getStrategies();
+    }
+
+    function savePack(pack) {
+      dataModule.setStrategies(pack);
+    }
+
+    function rebuildSelect() {
+      const sel = $("strategies-select");
+      if (!sel) return;
+
+      const pack = getPack();
+      sel.innerHTML = "";
+
+      if (!pack || !pack.strategies) return;
+
+      Object.keys(pack.strategies).forEach((k) => {
+        const opt = document.createElement("option");
+        opt.value = k;
+        opt.textContent = k;
+        sel.appendChild(opt);
+      });
+
+      if (selectedKey && pack.strategies[selectedKey]) {
+        sel.value = selectedKey;
+      } else {
+        selectedKey = sel.value || null;
+      }
+    }
+
+    function renderWeightsTable(strategy) {
+      const tbody = $("strategies-weights-table")?.querySelector("tbody");
+      if (!tbody) return;
+
+      tbody.innerHTML = "";
+      ROLE_IDS.forEach((r) => {
+        const tr = document.createElement("tr");
+
+        const tdRole = document.createElement("td");
+        tdRole.textContent = i18nModule.roleLabel(r);
+        tr.appendChild(tdRole);
+
+        const tdVal = document.createElement("td");
+        const inp = document.createElement("input");
+        inp.type = "number";
+        inp.step = "0.05";
+        inp.value = strategy && strategy.roleWeights && typeof strategy.roleWeights[r] === "number"
+          ? strategy.roleWeights[r]
+          : 1.0;
+        inp.dataset.role = r;
+        inp.className = "input";
+        tdVal.appendChild(inp);
+        tr.appendChild(tdVal);
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    function fillForm() {
+      const pack = getPack();
+      if (!pack || !pack.strategies) return;
+
+      const s = pack.strategies[selectedKey];
+      if (!s) return;
+
+      $("strategies-name-ru").value = (s.display && s.display.ru) ? s.display.ru : selectedKey;
+      $("strategies-name-en").value = (s.display && s.display.en) ? s.display.en : selectedKey;
+      $("strategies-desc-ru").value = (s.description && s.description.ru) ? s.description.ru : "";
+      $("strategies-desc-en").value = (s.description && s.description.en) ? s.description.en : "";
+
+      $("strategies-target-infantry").value = s.compositionTargets ? (s.compositionTargets.infantry || 0) : 0;
+      $("strategies-target-tanks").value = s.compositionTargets ? (s.compositionTargets.tanks || 0) : 0;
+      $("strategies-target-mechanical").value = s.compositionTargets ? (s.compositionTargets.mechanical || 0) : 0;
+      $("strategies-target-support").value = s.compositionTargets ? (s.compositionTargets.support || 0) : 0;
+
+      renderWeightsTable(s);
+      rebuildJson();
+    }
+
+    function gatherWeightsFromTable() {
+      const table = $("strategies-weights-table");
+      if (!table) return {};
+      const inputs = table.querySelectorAll("input[data-role]");
+      const roleWeights = {};
+      inputs.forEach((inp) => {
+        const r = inp.dataset.role;
+        roleWeights[r] = Number(inp.value) || 0;
+      });
+      return roleWeights;
+    }
+
+    function saveCurrentStrategy() {
+      const pack = getPack();
+      if (!pack || !pack.strategies || !selectedKey) return;
+
+      const s = pack.strategies[selectedKey];
+      if (!s) return;
+
+      s.display = s.display || { ru: selectedKey, en: selectedKey };
+      s.description = s.description || { ru: "", en: "" };
+      s.compositionTargets = s.compositionTargets || { infantry: 0, tanks: 0, mechanical: 0, support: 0 };
+
+      s.display.ru = $("strategies-name-ru").value.trim() || selectedKey;
+      s.display.en = $("strategies-name-en").value.trim() || selectedKey;
+      s.description.ru = $("strategies-desc-ru").value || "";
+      s.description.en = $("strategies-desc-en").value || "";
+
+      s.compositionTargets.infantry = clamp(Number($("strategies-target-infantry").value) || 0, 0, 5);
+      s.compositionTargets.tanks = clamp(Number($("strategies-target-tanks").value) || 0, 0, 5);
+      s.compositionTargets.mechanical = clamp(Number($("strategies-target-mechanical").value) || 0, 0, 5);
+      s.compositionTargets.support = clamp(Number($("strategies-target-support").value) || 0, 0, 5);
+
+      s.roleWeights = gatherWeightsFromTable();
+
+      savePack(pack);
+      setText($("strategies-status"), i18nModule.getLanguage() === "en" ? "Saved." : "Сохранено.");
+
+      rebuildJson();
+      offlineDraftModule.onStrategiesUpdated();
+    }
+
+    function addStrategy() {
+      const key = prompt(i18nModule.getLanguage() === "en" ? "New strategy key (latin, underscore):" : "Ключ новой стратегии (латиница, underscore):");
+      if (!key) return;
+
+      const clean = key.trim();
+      if (!clean) return;
+
+      const pack = getPack();
+      if (!pack || !pack.strategies) return;
+
+      if (pack.strategies[clean]) {
+        alert(i18nModule.getLanguage() === "en" ? "Strategy already exists." : "Стратегия уже существует.");
+        return;
+      }
+
+      const roleWeights = {};
+      ROLE_IDS.forEach((r) => roleWeights[r] = 1.0);
+
+      pack.strategies[clean] = {
+        display: { ru: clean, en: clean },
+        description: { ru: "", en: "" },
+        roleWeights: roleWeights,
+        compositionTargets: { infantry: 0, tanks: 0, mechanical: 0, support: 0 },
+        specialTargets: {},
+        overrides: { counterWeightMultiplier: 1.0, universalWeightMultiplier: 1.0 }
+      };
+
+      savePack(pack);
+      selectedKey = clean;
+
+      rebuildSelect();
+      fillForm();
+      offlineDraftModule.onStrategiesUpdated();
+    }
+
+    function deleteStrategy() {
+      const pack = getPack();
+      if (!pack || !pack.strategies || !selectedKey) return;
+
+      const ok = confirm(i18nModule.getLanguage() === "en" ? "Delete strategy?" : "Удалить стратегию?");
+      if (!ok) return;
+
+      delete pack.strategies[selectedKey];
+      savePack(pack);
+
+      selectedKey = null;
+      rebuildSelect();
+      fillForm();
+      offlineDraftModule.onStrategiesUpdated();
+    }
+
+    function rebuildJson() {
+      const area = $("strategies-json");
+      if (!area) return;
+      const pack = getPack();
+      area.value = JSON.stringify(pack, null, 2);
+    }
+
+    function applyJson() {
+      const area = $("strategies-json");
+      if (!area) return;
+      try {
+        const obj = JSON.parse(area.value);
+        dataModule.setStrategies(obj);
+        setText($("strategies-status"), i18nModule.getLanguage() === "en" ? "Applied JSON." : "JSON применён.");
+
+        selectedKey = null;
+        rebuildSelect();
+        fillForm();
+        offlineDraftModule.onStrategiesUpdated();
+      } catch (err) {
+        alert("JSON error: " + err.message);
+      }
+    }
+
+    function initImportExport() {
+      const exportBtn = $("strategies-export-btn");
+      const importBtn = $("strategies-import-btn");
+      const fileInput = $("strategies-import-file");
+
+      if (exportBtn) {
+        exportBtn.addEventListener("click", function () {
+          dataModule.exportStrategiesFile();
+        });
+      }
+
+      if (importBtn && fileInput) {
+        importBtn.addEventListener("click", function () {
+          fileInput.click();
+        });
+        fileInput.addEventListener("change", function () {
+          const file = fileInput.files && fileInput.files[0];
+          if (!file) return;
+          readFileAsText(file).then((text) => {
+            dataModule.importStrategiesText(text);
+            selectedKey = null;
+            rebuildSelect();
+            fillForm();
+            offlineDraftModule.onStrategiesUpdated();
+            setText($("strategies-status"), i18nModule.getLanguage() === "en" ? "Imported." : "Импортировано.");
+          }).catch((err) => {
+            alert(err.message);
+          });
+        });
+      }
+    }
+
+    function init() {
+      rebuildSelect();
+
+      const sel = $("strategies-select");
+      if (sel) {
+        sel.addEventListener("change", function () {
+          selectedKey = sel.value || null;
+          fillForm();
+        });
+      }
+
+      const saveBtn = $("strategies-save-btn");
+      const addBtn = $("strategies-add-btn");
+      const delBtn = $("strategies-delete-btn");
+      const applyBtn = $("strategies-apply-json-btn");
+
+      if (saveBtn) saveBtn.addEventListener("click", saveCurrentStrategy);
+      if (addBtn) addBtn.addEventListener("click", addStrategy);
+      if (delBtn) delBtn.addEventListener("click", deleteStrategy);
+      if (applyBtn) applyBtn.addEventListener("click", applyJson);
+
+      initImportExport();
+      fillForm();
+    }
+
+    function onLanguageChanged() {
+      rebuildSelect();
+      fillForm();
+    }
+
+    return { init, onLanguageChanged };
+  })();
+
+  // ------------------------------------------------------
+  // --- coeffsModule: tier multipliers + altPickChance + tierBias
+  // ------------------------------------------------------
+
+  const coeffsModule = (function () {
+    function fill() {
+      const c = dataModule.getCoeffs();
+      $("coeffs-tier-S").value = c.tier.S;
+      $("coeffs-tier-A").value = c.tier.A;
+      $("coeffs-tier-B").value = c.tier.B;
+      $("coeffs-tier-C").value = c.tier.C;
+      $("coeffs-tier-D").value = c.tier.D;
+      $("coeffs-tier-F").value = c.tier.F;
+      $("coeffs-altpick").value = c.altPickChance;
+      $("coeffs-tierbias").value = c.tierBias;
+    }
+
+    function save() {
+      const obj = {
+        tier: {
+          S: Number($("coeffs-tier-S").value),
+          A: Number($("coeffs-tier-A").value),
+          B: Number($("coeffs-tier-B").value),
+          C: Number($("coeffs-tier-C").value),
+          D: Number($("coeffs-tier-D").value),
+          F: Number($("coeffs-tier-F").value)
+        },
+        altPickChance: Number($("coeffs-altpick").value),
+        tierBias: Number($("coeffs-tierbias").value)
+      };
+      dataModule.setCoeffs(obj);
+      setText($("coeffs-status"), i18nModule.getLanguage() === "en" ? "Saved." : "Сохранено.");
+      offlineDraftModule.renderAll();
+    }
+
+    function initImportExport() {
+      const exportBtn = $("coeffs-export-btn");
+      const importBtn = $("coeffs-import-btn");
+      const fileInput = $("coeffs-import-file");
+
+      if (exportBtn) exportBtn.addEventListener("click", function () { dataModule.exportCoeffsFile(); });
+
+      if (importBtn && fileInput) {
+        importBtn.addEventListener("click", function () { fileInput.click(); });
+        fileInput.addEventListener("change", function () {
+          const file = fileInput.files && fileInput.files[0];
+          if (!file) return;
+          readFileAsText(file).then((text) => {
+            dataModule.importCoeffsText(text);
+            fill();
+            offlineDraftModule.renderAll();
+            setText($("coeffs-status"), i18nModule.getLanguage() === "en" ? "Imported." : "Импортировано.");
+          }).catch((err) => alert(err.message));
+        });
+      }
+    }
+
+    function init() {
+      fill();
+      initImportExport();
+      const saveBtn = $("coeffs-save-btn");
+      if (saveBtn) saveBtn.addEventListener("click", save);
+    }
+
+    function onLanguageChanged() {
+      fill();
+    }
+
+    return { init, onLanguageChanged };
+  })();
+
+  // ------------------------------------------------------
+  // --- aiSettingsModule: формулы, soft-caps, планирование, JSON
+  // ------------------------------------------------------
+
+  const aiSettingsModule = (function () {
+    function fill() {
+      const s = dataModule.getAiSettings();
+      if (!s) return;
+
+      // weights
+      $("ai-w-mmr").value = s.formula.weights.mmr;
+      $("ai-w-dpm").value = s.formula.weights.dpm;
+      $("ai-w-role").value = s.formula.weights.rolePref;
+      $("ai-w-comp").value = s.formula.weights.composition;
+      $("ai-w-universal").value = s.formula.weights.universal;
+      $("ai-w-counter").value = s.formula.weights.counter;
+
+      $("ai-penalties-mult").value = s.formula.weights.penaltiesMultiplier;
+      $("ai-noise-amp").value = s.formula.weights.noiseAmplitude;
+
+      // tier dominance
+      $("ai-tier-dom-enabled").checked = !!s.formula.tierDominance.enabled;
+      $("ai-tier-down-penalty").value = s.formula.tierDominance.downPenaltyWhenHigherExists;
+
+      // mmr
+      $("ai-mmr-min").value = s.formula.normalization.mmrMin;
+      $("ai-mmr-max").value = s.formula.normalization.mmrMax;
+      $("ai-mmr-gap-threshold").value = s.formula.mmrGap.threshold;
+      $("ai-mmr-gap-bonus").value = s.formula.mmrGap.bonusPer100;
+
+      // universal
+      $("ai-universal-min-roles").value = s.formula.universal.minRolesToBeUniversal;
+      $("ai-universal-bonus").value = s.formula.universal.universalBonus;
+      $("ai-dont-spend-universal-support").checked = !!s.formula.universal.dontSpendUniversalOnSupport;
+      $("ai-universal-support-penalty").value = s.formula.universal.universalOnSupportPenalty;
+
+      // planning
+      $("ai-plan-enabled").value = s.formula.planning.enabled ? "true" : "false";
+      $("ai-plan-topk").value = s.formula.planning.candidateTopK;
+      $("ai-enemy-model").value = s.formula.planning.enemyModel || "power_first";
+
+      // softcaps
+      $("ai-soft-supportonly-max").value = s.formula.softCaps.supportOnly.maxPreferred;
+      $("ai-soft-supportonly-pen2").value = s.formula.softCaps.supportOnly.penaltySecond;
+      $("ai-soft-supportonly-pen3").value = s.formula.softCaps.supportOnly.penaltyThirdPlus;
+
+      $("ai-soft-supporttotal-max").value = s.formula.softCaps.supportTotal.maxPreferred;
+      $("ai-soft-supporttotal-pen").value = s.formula.softCaps.supportTotal.penaltyPerExtra;
+
+      // hints
+      $("ai-hints-alts").value = s.formula.hints.alternativesCount;
+      $("ai-hints-show-opponent-hva").checked = !!s.formula.hints.showOpponentHintsInHumanVsAI;
+
+      rebuildJson();
+    }
+
+    function save() {
+      const s = deepClone(dataModule.getAiSettings());
+
+      s.formula.weights.mmr = Number($("ai-w-mmr").value) || 0;
+      s.formula.weights.dpm = Number($("ai-w-dpm").value) || 0;
+      s.formula.weights.rolePref = Number($("ai-w-role").value) || 0;
+      s.formula.weights.composition = Number($("ai-w-comp").value) || 0;
+      s.formula.weights.universal = Number($("ai-w-universal").value) || 0;
+      s.formula.weights.counter = Number($("ai-w-counter").value) || 0;
+
+      s.formula.weights.penaltiesMultiplier = Number($("ai-penalties-mult").value) || 0;
+      s.formula.weights.noiseAmplitude = Number($("ai-noise-amp").value) || 0;
+
+      s.formula.tierDominance.enabled = !!$("ai-tier-dom-enabled").checked;
+      s.formula.tierDominance.downPenaltyWhenHigherExists = Number($("ai-tier-down-penalty").value) || 0;
+
+      s.formula.normalization.mmrMin = Number($("ai-mmr-min").value) || 0;
+      s.formula.normalization.mmrMax = Number($("ai-mmr-max").value) || 0;
+
+      s.formula.mmrGap.threshold = Number($("ai-mmr-gap-threshold").value) || 0;
+      s.formula.mmrGap.bonusPer100 = Number($("ai-mmr-gap-bonus").value) || 0;
+
+      s.formula.universal.minRolesToBeUniversal = Number($("ai-universal-min-roles").value) || 0;
+      s.formula.universal.universalBonus = Number($("ai-universal-bonus").value) || 0;
+      s.formula.universal.dontSpendUniversalOnSupport = !!$("ai-dont-spend-universal-support").checked;
+      s.formula.universal.universalOnSupportPenalty = Number($("ai-universal-support-penalty").value) || 0;
+
+      s.formula.planning.enabled = ($("ai-plan-enabled").value === "true");
+      s.formula.planning.candidateTopK = Number($("ai-plan-topk").value) || 10;
+      s.formula.planning.enemyModel = $("ai-enemy-model").value || "power_first";
+
+      s.formula.softCaps.supportOnly.maxPreferred = Number($("ai-soft-supportonly-max").value) || 0;
+      s.formula.softCaps.supportOnly.penaltySecond = Number($("ai-soft-supportonly-pen2").value) || 0;
+      s.formula.softCaps.supportOnly.penaltyThirdPlus = Number($("ai-soft-supportonly-pen3").value) || 0;
+
+      s.formula.softCaps.supportTotal.maxPreferred = Number($("ai-soft-supporttotal-max").value) || 0;
+      s.formula.softCaps.supportTotal.penaltyPerExtra = Number($("ai-soft-supporttotal-pen").value) || 0;
+
+      s.formula.hints.alternativesCount = clamp(Number($("ai-hints-alts").value) || 0, 0, 5);
+      s.formula.hints.showOpponentHintsInHumanVsAI = !!$("ai-hints-show-opponent-hva").checked;
+
+      dataModule.setAiSettings(s);
+      rebuildJson();
+
+      setText($("ai-settings-status"), i18nModule.getLanguage() === "en" ? "Saved." : "Сохранено.");
+      offlineDraftModule.renderAll();
+    }
+
+    function rebuildJson() {
+      const area = $("ai-settings-json");
+      if (!area) return;
+      area.value = JSON.stringify(dataModule.getAiSettings(), null, 2);
+    }
+
+    function applyJson() {
+      const area = $("ai-settings-json");
+      if (!area) return;
+      try {
+        const obj = JSON.parse(area.value);
+        dataModule.setAiSettings(obj);
+        fill();
+        setText($("ai-settings-status"), i18nModule.getLanguage() === "en" ? "Applied JSON." : "JSON применён.");
+        offlineDraftModule.renderAll();
+      } catch (err) {
+        alert("JSON error: " + err.message);
+      }
+    }
+
+    function initImportExport() {
+      const exportBtn = $("ai-settings-export-btn");
+      const importBtn = $("ai-settings-import-btn");
+      const fileInput = $("ai-settings-import-file");
+
+      if (exportBtn) exportBtn.addEventListener("click", function () { dataModule.exportAiSettingsFile(); });
+
+      if (importBtn && fileInput) {
+        importBtn.addEventListener("click", function () { fileInput.click(); });
+        fileInput.addEventListener("change", function () {
+          const file = fileInput.files && fileInput.files[0];
+          if (!file) return;
+          readFileAsText(file).then((text) => {
+            dataModule.importAiSettingsText(text);
+            fill();
+            offlineDraftModule.renderAll();
+            setText($("ai-settings-status"), i18nModule.getLanguage() === "en" ? "Imported." : "Импортировано.");
+          }).catch((err) => alert(err.message));
+        });
+      }
+    }
+
+    function init() {
+      fill();
+      initImportExport();
+
+      const saveBtn = $("ai-settings-save-btn");
+      const applyBtn = $("ai-settings-apply-json-btn");
+
+      if (saveBtn) saveBtn.addEventListener("click", save);
+      if (applyBtn) applyBtn.addEventListener("click", applyJson);
+    }
+
+    function onLanguageChanged() {
+      fill();
+    }
+
+    return { init, onLanguageChanged };
+  })();
+
+  // ------------------------------------------------------
+  // --- importExportModule: отдельные импорты + bundle
+  // ------------------------------------------------------
+
+  const importExportModule = (function () {
+    function init() {
+      const status = $("import-export-status");
+
+      // Export buttons
+      const exportPlayersBtn = $("export-players-btn");
+      const exportStratsBtn = $("export-strategies-btn");
+      const exportCoeffsBtn = $("export-coeffs-btn");
+      const exportAiBtn = $("export-ai-settings-btn");
+      const exportBundleBtn = $("export-bundle-btn");
+
+      if (exportPlayersBtn) exportPlayersBtn.addEventListener("click", function () { dataModule.exportPlayersFile(); setText(status, "OK"); });
+      if (exportStratsBtn) exportStratsBtn.addEventListener("click", function () { dataModule.exportStrategiesFile(); setText(status, "OK"); });
+      if (exportCoeffsBtn) exportCoeffsBtn.addEventListener("click", function () { dataModule.exportCoeffsFile(); setText(status, "OK"); });
+      if (exportAiBtn) exportAiBtn.addEventListener("click", function () { dataModule.exportAiSettingsFile(); setText(status, "OK"); });
+      if (exportBundleBtn) exportBundleBtn.addEventListener("click", function () { dataModule.exportBundle(); setText(status, "OK"); });
+
+      // Import separate files
+      bindImportButton("import-players-btn", "import-players-file", function (text) { dataModule.importPlayersText(text); playersModule.onLanguageChanged(); offlineDraftModule.renderAll(); });
+      bindImportButton("import-strategies-btn", "import-strategies-file", function (text) { dataModule.importStrategiesText(text); strategiesModule.onLanguageChanged(); offlineDraftModule.onStrategiesUpdated(); });
+      bindImportButton("import-coeffs-btn", "import-coeffs-file", function (text) { dataModule.importCoeffsText(text); coeffsModule.onLanguageChanged(); offlineDraftModule.renderAll(); });
+      bindImportButton("import-ai-settings-btn", "import-ai-settings-file", function (text) { dataModule.importAiSettingsText(text); aiSettingsModule.onLanguageChanged(); offlineDraftModule.renderAll(); });
+
+      // Bundle import
+      const importBundleBtn = $("import-bundle-btn");
+      const importBundleFile = $("import-bundle-file");
+      if (importBundleBtn && importBundleFile) {
+        importBundleBtn.addEventListener("click", function () { importBundleFile.click(); });
+        importBundleFile.addEventListener("change", function () {
+          const file = importBundleFile.files && importBundleFile.files[0];
+          if (!file) return;
+          readFileAsText(file).then((text) => {
+            dataModule.importBundleText(text);
+            themeModule.applyTheme();
+            i18nModule.applyStaticTranslations();
+            offlineDraftModule.onLanguageChanged();
+            playersModule.onLanguageChanged();
+            strategiesModule.onLanguageChanged();
+            coeffsModule.onLanguageChanged();
+            aiSettingsModule.onLanguageChanged();
+            setText(status, i18nModule.getLanguage() === "en" ? "Bundle imported." : "Bundle импортирован.");
+          }).catch((err) => {
+            setText(status, "Error: " + err.message);
+          });
+        });
+      }
+    }
+
+    function bindImportButton(btnId, fileId, handler) {
+      const btn = $(btnId);
+      const fileInput = $(fileId);
+      const status = $("import-export-status");
+
+      if (!btn || !fileInput) return;
+
+      btn.addEventListener("click", function () {
+        fileInput.click();
+      });
+
+      fileInput.addEventListener("change", function () {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+        readFileAsText(file).then((text) => {
+          handler(text);
+          themeModule.applyTheme();
+          setText(status, i18nModule.getLanguage() === "en" ? "Imported." : "Импортировано.");
+        }).catch((err) => {
+          setText(status, "Error: " + err.message);
+        });
+      });
+    }
+
+    return { init };
+  })();
+
+  // ------------------------------------------------------
+  // --- uiModule: навигация между экранами
+  // ------------------------------------------------------
+
+  const uiModule = (function () {
+    function showScreen(id) {
+      document.querySelectorAll(".screen").forEach((s) => s.classList.remove("active"));
+      const el = $(id);
+      if (el) el.classList.add("active");
+    }
+
+    function initMenuCards() {
+      document.querySelectorAll(".menu-card").forEach((card) => {
+        card.addEventListener("click", function () {
+          const target = card.dataset.screenTarget;
+          if (target) showScreen(target);
+        });
+      });
+
+      const backIds = [
+        "btn-back-menu-1",
+        "btn-back-menu-2",
+        "btn-back-menu-3",
+        "btn-back-menu-4",
+        "btn-back-menu-5",
+        "btn-back-menu-6",
+        "btn-back-menu-7"
+      ];
+      backIds.forEach((id) => {
+        const btn = $(id);
+        if (btn) btn.addEventListener("click", function () { showScreen("screen-menu"); });
+      });
+    }
+
+    function initLanguageSwitch() {
+      const sel = $("lang-select");
+      if (!sel) return;
+
+      sel.value = i18nModule.getLanguage();
+
+      sel.addEventListener("change", function () {
+        const lang = sel.value === "en" ? "en" : "ru";
+        i18nModule.setLanguage(lang);
+        i18nModule.applyStaticTranslations();
+
+        // Re-render modules that contain dynamic text (role labels, etc.)
+        offlineDraftModule.onLanguageChanged();
+        playersModule.onLanguageChanged();
+        strategiesModule.onLanguageChanged();
+        coeffsModule.onLanguageChanged();
+        aiSettingsModule.onLanguageChanged();
+      });
+    }
+
+    function init() {
+      initMenuCards();
+      initLanguageSwitch();
+    }
+
+    return { init, showScreen };
+  })();
+
+  // ------------------------------------------------------
+  // --- ИНИЦИАЛИЗАЦИЯ
+  // ------------------------------------------------------
+
+  window.addEventListener("DOMContentLoaded", function () {
+    i18nModule.loadLanguage();
+
+    dataModule.init().then(() => {
+      // Apply language + theme early
+      const sel = $("lang-select");
+      if (sel) sel.value = i18nModule.getLanguage();
+
+      i18nModule.applyStaticTranslations();
+      themeModule.applyTheme();
+
+      uiModule.init();
+
+      themeModule.initAppearanceUI();
+
+      playersModule.init();
+      strategiesModule.init();
+      coeffsModule.init();
+      aiSettingsModule.init();
+      importExportModule.init();
+
+      offlineDraftModule.init();
+    }).catch((err) => {
+      console.error("INIT ERROR:", err);
+      alert("INIT ERROR: " + err.message);
+    });
   });
 
-  if (!isMyTurn && (d.mode === "human_vs_ai" || d.mode === "ai_vs_ai")) {
-    aiPickOnlineCurrentSide(context, scored);
-  }
-}
-
-function humanPickOnline(name) {
-  const d = onlineState.draft;
-  if (!d || d.finished) return;
-  const step = DRAFT_ORDER[d.currentPickIndex];
-  if (!step) return;
-  const side = step.team;
-  const isMyTurn = (d.mode === "human_vs_human" && (
-    (side === "team1" && onlineState.myRole === "captain1") ||
-    (side === "team2" && onlineState.myRole === "captain2")
-  )) || (d.mode === "human_vs_ai" && onlineState.myRole === "captain1" && side === "team1");
-  if (!isMyTurn) return;
-  if (!d.available.includes(name)) return;
-  if (name === d.captain1 || name === d.captain2) return;
-  if (side === "team1") d.team1.push(name);
-  else d.team2.push(name);
-  d.available = d.available.filter(n=>n!==name);
-  d.currentPickIndex++;
-  if (d.currentPickIndex >= DRAFT_ORDER.length) {
-    d.finished = true;
-    d.status = DRAFT_STATUS.finished;
-    $("online-match-status").textContent = "Завершён";
-    const finishEl = $("online-finish");
-    if (finishEl) {
-      finishEl.classList.remove("hidden");
-      finishEl.innerHTML = "<strong>Драфт завершён.</strong> Каждая команда укомплектована (капитан + 4 игрока).";
-    }
-  }
-  saveDraftState(onlineState.room ? onlineState.room.id : null, d);
-  renderOnlineDraft();
-}
-
-function aiPickOnlineCurrentSide(ctx, scoredList) {
-  const d = onlineState.draft;
-  if (!d || d.finished) return;
-  const step = DRAFT_ORDER[d.currentPickIndex];
-  if (!step) return;
-  const side = step.team;
-  const isMyTurn = (d.mode === "human_vs_human" && (
-    (side === "team1" && onlineState.myRole === "captain1") ||
-    (side === "team2" && onlineState.myRole === "captain2")
-  )) || (d.mode === "human_vs_ai" && onlineState.myRole === "captain1" && side === "team1");
-  if (isMyTurn) return;
-
-  const valid = scoredList.filter(s => d.available.includes(s.player.name) && s.player.name !== d.captain1 && s.player.name !== d.captain2);
-  if (!valid.length) return;
-  const top = valid.slice(0, Math.min(3, valid.length));
-  const choice = pickWithAiPreference(top);
-  const name = choice.player.name;
-  if (side === "team1") d.team1.push(name);
-  else d.team2.push(name);
-  d.available = d.available.filter(n=>n!==name);
-  d.currentPickIndex++;
-  if (d.currentPickIndex >= DRAFT_ORDER.length) {
-    d.finished = true;
-    d.status = DRAFT_STATUS.finished;
-    $("online-match-status").textContent = "Завершён";
-  }
-  saveDraftState(onlineState.room ? onlineState.room.id : null, d);
-  renderOnlineDraft();
-}
-
-// --- Админ-панель ---
-
-function initAdminScreen() {
-  $("admin-login-btn").addEventListener("click", () => {
-    const pwd = $("admin-password").value || "";
-    const status = $("admin-login-status");
-    if (pwd === onlineState.adminPassword) {
-      onlineState.isAdmin = true;
-      status.textContent = "Админ-режим активирован.";
-      $("admin-actions").classList.remove("hidden");
-    } else {
-      onlineState.isAdmin = false;
-      status.textContent = "Неверный админ-пароль.";
-      $("admin-actions").classList.add("hidden");
-    }
-  });
-
-  $("admin-load-global").addEventListener("click", adminLoadGlobal);
-  $("admin-save-global").addEventListener("click", adminSaveGlobal);
-  $("admin-strategies-load").addEventListener("click", adminStrategiesLoad);
-  $("admin-strategies-save").addEventListener("click", adminStrategiesSave);
-  $("admin-rooms-refresh").addEventListener("click", adminRoomsSummary);
-  $("admin-clean-rooms").addEventListener("click", adminCleanOldRooms);
-  $("admin-change-password-btn").addEventListener("click", adminChangePassword);
-}
-
-async function adminLoadGlobal() {
-  const status = $("admin-actions-status");
-  status.textContent = "Загрузка глобальной базы...";
-  const supabase = initSupabase();
-  try {
-    const { data, error } = await supabase
-      .from("players_global")
-      .select("*");
-    if (error) throw error;
-    playersGlobal = normalizePlayers(data || []);
-    status.textContent = `Глобальная база загружена: ${playersGlobal.length} игроков. Переключись на неё в разделе «Игроки и статистика».`;
-    if (activeDataset === "global") {
-      applyDatasetSource();
-      renderPlayersList();
-      renderMenuSummary();
-      populateOfflineCaptains();
-      populateOnlineCaptains();
-    }
-  } catch (e) {
-    console.error(e);
-    status.textContent = "Ошибка загрузки глобальной базы.";
-  }
-}
-
-async function adminSaveGlobal() {
-  const status = $("admin-actions-status");
-  const supabase = initSupabase();
-  const source = (playersGlobal && playersGlobal.length) ? playersGlobal : playersLocal;
-  if (!source || !source.length) {
-    status.textContent = "Нет данных для сохранения в глобальную базу.";
-    return;
-  }
-  status.textContent = "Сохранение глобальной базы...";
-  try {
-    const rows = source.map(p => ({
-      name: p.name,
-      tier: p.tier,
-      mmr: p.mmr,
-      dpm: p.dpm,
-      roles: p.roles
-    }));
-    await supabase.from("players_global").delete().neq("name", "");
-    const { error } = await supabase.from("players_global").insert(rows);
-    if (error) throw error;
-    status.textContent = "Глобальная база обновлена в Supabase.";
-  } catch (e) {
-    console.error(e);
-    status.textContent = "Ошибка сохранения глобальной базы.";
-  }
-}
-
-function adminStrategiesLoad() {
-  const ta = $("admin-strategies-json");
-  ta.value = JSON.stringify({ weights: ROLE_WEIGHTS, meta: aiBehavior }, null, 2);
-  $("admin-actions-status").textContent = "Текущий набор стратегий загружен в редактор.";
-  const alt = $("admin-alt-chance");
-  const tier = $("admin-tier-bias");
-  if (alt) alt.value = aiBehavior.altPickChance;
-  if (tier) tier.value = aiBehavior.tierBias;
-}
-
-async function adminStrategiesSave() {
-  const ta = $("admin-strategies-json");
-  try {
-    const obj = JSON.parse(ta.value);
-    ROLE_WEIGHTS = obj.weights || obj;
-    roleWeightsLocal = ROLE_WEIGHTS;
-    aiBehavior = obj.meta ? { ...aiBehavior, ...obj.meta } : aiBehavior;
-    aiBehaviorLocal = aiBehavior;
-    const alt = $("admin-alt-chance");
-    const tier = $("admin-tier-bias");
-    if (alt && alt.value !== "") aiBehavior.altPickChance = Math.max(0, Math.min(1, parseFloat(alt.value)));
-    if (tier && tier.value !== "") aiBehavior.tierBias = Math.max(0, parseFloat(tier.value));
-    saveStrategiesLocal();
-    applyStrategySource();
-    const status = $("admin-actions-status");
-    status.textContent = "Стратегии сохранены локально. Пытаемся отправить в Supabase...";
-    try {
-      const supabase = initSupabase();
-      const { error } = await supabase
-        .from("admin_config")
-        .upsert({ key: "ai_strategies", value: JSON.stringify({ weights: ROLE_WEIGHTS, meta: aiBehavior }) });
-      if (error) throw error;
-      roleWeightsGlobal = ROLE_WEIGHTS;
-      aiBehaviorGlobal = aiBehavior;
-      status.textContent = "Стратегии сохранены локально и в Supabase.";
-    } catch (e) {
-      console.warn("Failed to save strategies globally", e);
-      status.textContent = "Локально сохранено. Ошибка сохранения в Supabase.";
-    }
-  } catch (e) {
-    alert("Ошибка в JSON стратегий.");
-  }
-}
-
-async function adminChangePassword() {
-  const status = $("admin-change-password-status");
-  const master = $("admin-master-password").value || "";
-  const newPwd = $("admin-new-password").value || "";
-  if (master !== MASTER_PASSWORD) {
-    status.textContent = "Неверный мастер-пароль сайта.";
-    return;
-  }
-  if (!newPwd || newPwd.length < 4) {
-    status.textContent = "Новый админ-пароль должен быть не короче 4 символов.";
-    return;
-  }
-  try {
-    const supabase = initSupabase();
-    const { error } = await supabase
-      .from("admin_config")
-      .upsert({ key: "admin_password", value: newPwd }, { onConflict: "key" });
-    if (error) throw error;
-    onlineState.adminPassword = newPwd;
-    status.textContent = "Админ-пароль обновлён глобально через Supabase.";
-  } catch (e) {
-    console.error(e);
-    status.textContent = "Ошибка обновления админ-пароля.";
-  }
-}
-
-async function adminRoomsSummary() {
-  const supabase = initSupabase();
-  const info = $("admin-rooms-info");
-  info.textContent = "Загрузка комнат...";
-  const twoWeeksAgo = new Date(Date.now() - 14*24*60*60*1000).toISOString();
-  try {
-    const { data, error } = await supabase
-      .from("rooms")
-      .select("id, code, created_at")
-      .gte("created_at", twoWeeksAgo)
-      .order("created_at", { ascending: false })
-      .limit(20);
-    if (error) throw error;
-    info.innerHTML = `Активных комнат за 14 дней: <strong>${data.length}</strong>`;
-    if (data.length) {
-      const list = data.map(r => `${r.code} (${new Date(r.created_at).toLocaleDateString()})`).join(", ");
-      info.innerHTML += `<div class="hint small">${list}</div>`;
-    }
-  } catch (e) {
-    console.warn(e);
-    info.textContent = "Не удалось загрузить список комнат.";
-  }
-}
-
-async function adminCleanOldRooms() {
-  const info = $("admin-rooms-info");
-  if (!onlineState.isAdmin) {
-    info.textContent = "Для очистки комнат нужен админ-пароль (раздел выше).";
-    return;
-  }
-  const supabase = initSupabase();
-  const cutoff = new Date(Date.now() - 14*24*60*60*1000).toISOString();
-  info.textContent = "Удаляем старые комнаты...";
-  try {
-    const { data, error } = await supabase
-      .from("rooms")
-      .select("id")
-      .lt("created_at", cutoff);
-    if (error) throw error;
-    const ids = (data || []).map(r => r.id);
-    if (!ids.length) {
-      info.textContent = "Старых комнат нет.";
-      return;
-    }
-    await supabase.from("draft_state").delete().in("room_id", ids);
-    await supabase.from("rooms").delete().in("id", ids);
-    info.textContent = "Старые комнаты удалены.";
-  } catch (e) {
-    console.error(e);
-    info.textContent = "Не удалось очистить комнаты.";
-  }
-}
-
-// --- Инициализация ---
-
-window.addEventListener("load", () => {
-  loadPlayersLocal();
-  loadStrategiesLocal();
-  initMenu();
-  initOffline();
-  initPlayersScreen();
-  initOnlineScreen();
-  initAdminScreen();
-
-  applyStrategySource();
-  loadStrategiesGlobal();
-  if (activeDataset === "global") {
-    loadPlayersGlobal(true);
-  }
-
-  // Подгружаем глобальный админ-пароль из Supabase (если таблица настроена)
-  loadAdminPasswordGlobal();
-
-  showScreen("menu");
-});
+})(); 

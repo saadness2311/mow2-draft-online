@@ -1,0 +1,453 @@
+{
+  "version": "15.0",
+  "strategies": {
+    "balanced": {
+      "display": {
+        "ru": "balanced — сбалансированная армия",
+        "en": "balanced — balanced army"
+      },
+      "description": {
+        "ru": "Старается собрать ровный состав: пехота + танки + механка + немного поддержки, но Tier/MMR всё равно важнее.",
+        "en": "Aims for a balanced roster: infantry + tanks + mechanized + some support, while Tier/MMR still dominate."
+      },
+      "roleWeights": {
+        "infantry": 1.2,
+        "motorized_infantry": 1.1,
+        "assault_infantry": 1.1,
+        "mechanical": 1.15,
+        "tanks": 1.2,
+        "heavy_tanks": 1.15,
+        "artillery": 1.0,
+        "at_artillery": 1.05,
+        "aa_artillery": 0.9,
+        "spg": 0.95,
+        "sapper": 1.05
+      },
+      "compositionTargets": {
+        "infantry": 2,
+        "tanks": 2,
+        "mechanical": 1,
+        "support": 1
+      },
+      "specialTargets": {},
+      "overrides": {
+        "counterWeightMultiplier": 1.0,
+        "universalWeightMultiplier": 1.0
+      }
+    },
+    "standard_elite": {
+      "display": {
+        "ru": "standard_elite — упор на сильных игроков",
+        "en": "standard_elite — power-first elite"
+      },
+      "description": {
+        "ru": "Почти игнорирует тактику: главная цель — взять самых сильных по Tier/MMR, состав вторичен.",
+        "en": "Almost ignores composition: the primary goal is to draft the strongest Tier/MMR players."
+      },
+      "roleWeights": {
+        "infantry": 1.0,
+        "motorized_infantry": 1.0,
+        "assault_infantry": 1.0,
+        "mechanical": 1.0,
+        "tanks": 1.0,
+        "heavy_tanks": 1.0,
+        "artillery": 0.85,
+        "at_artillery": 0.9,
+        "aa_artillery": 0.8,
+        "spg": 0.85,
+        "sapper": 1.0
+      },
+      "compositionTargets": {
+        "infantry": 1,
+        "tanks": 1,
+        "mechanical": 0,
+        "support": 0
+      },
+      "specialTargets": {},
+      "overrides": {
+        "counterWeightMultiplier": 0.6,
+        "universalWeightMultiplier": 1.0
+      }
+    },
+    "counter_enemy_roles": {
+      "display": {
+        "ru": "counter_enemy_roles — универсальная контр-стратегия",
+        "en": "counter_enemy_roles — universal counter strategy"
+      },
+      "description": {
+        "ru": "Учитывает контры (по умолчанию слабее Tier/MMR), но старается подбирать игроков, которые закрывают контр-ответы.",
+        "en": "Considers counters (still weaker than Tier/MMR by default) and tries to pick counter-capable players."
+      },
+      "roleWeights": {
+        "infantry": 1.05,
+        "motorized_infantry": 1.05,
+        "assault_infantry": 1.05,
+        "mechanical": 1.05,
+        "tanks": 1.1,
+        "heavy_tanks": 1.15,
+        "artillery": 1.05,
+        "at_artillery": 1.25,
+        "aa_artillery": 1.0,
+        "spg": 1.0,
+        "sapper": 1.0
+      },
+      "compositionTargets": {
+        "infantry": 2,
+        "tanks": 2,
+        "mechanical": 1,
+        "support": 1
+      },
+      "specialTargets": {},
+      "overrides": {
+        "counterWeightMultiplier": 2.0,
+        "universalWeightMultiplier": 1.0
+      }
+    },
+    "aggressive_breakthrough": {
+      "display": {
+        "ru": "aggressive_breakthrough — агрессия и наступление (без арты)",
+        "en": "aggressive_breakthrough — aggression & breakthrough (no artillery)"
+      },
+      "description": {
+        "ru": "Сильный упор на танки/механику и штурмовые роли. Поддержка сильно занижена, но не запрещена (Tier может перевесить).",
+        "en": "Strong focus on tanks/mech and assault roles. Support is heavily de-prioritized but not forbidden (Tier can override)."
+      },
+      "roleWeights": {
+        "infantry": 1.1,
+        "motorized_infantry": 1.2,
+        "assault_infantry": 1.25,
+        "mechanical": 1.25,
+        "tanks": 1.35,
+        "heavy_tanks": 1.3,
+        "artillery": 0.6,
+        "at_artillery": 0.75,
+        "aa_artillery": 0.7,
+        "spg": 0.6,
+        "sapper": 1.0
+      },
+      "compositionTargets": {
+        "infantry": 2,
+        "tanks": 2,
+        "mechanical": 1,
+        "support": 0
+      },
+      "specialTargets": {},
+      "overrides": {
+        "counterWeightMultiplier": 0.8,
+        "universalWeightMultiplier": 1.0
+      }
+    },
+    "defensive_fortress": {
+      "display": {
+        "ru": "defensive_fortress — оборона (2 поддержки + 2 пехоты)",
+        "en": "defensive_fortress — defense (2 support + 2 infantry)"
+      },
+      "description": {
+        "ru": "Собирает оборонный костяк: минимум 2 пехоты и 2 игрока с поддержкой (арт/ПТО/САУ/ПВО).",
+        "en": "Builds a defensive core: at least 2 infantry and 2 support-capable players (arty/AT/SPG/AA)."
+      },
+      "roleWeights": {
+        "infantry": 1.25,
+        "motorized_infantry": 1.15,
+        "assault_infantry": 1.1,
+        "mechanical": 0.95,
+        "tanks": 1.0,
+        "heavy_tanks": 1.05,
+        "artillery": 1.2,
+        "at_artillery": 1.35,
+        "aa_artillery": 1.05,
+        "spg": 1.1,
+        "sapper": 1.2
+      },
+      "compositionTargets": {
+        "infantry": 2,
+        "tanks": 1,
+        "mechanical": 0,
+        "support": 2
+      },
+      "specialTargets": {
+        "at_artillery": 1
+      },
+      "overrides": {
+        "counterWeightMultiplier": 1.1,
+        "universalWeightMultiplier": 0.9
+      }
+    },
+    "mechanized_mobility": {
+      "display": {
+        "ru": "mechanized_mobility — мобильность и механизированные части",
+        "en": "mechanized_mobility — mechanized mobility"
+      },
+      "description": {
+        "ru": "Ищет игроков, способных на механке, и дополняет пехотой/танками. Поддержка вторична.",
+        "en": "Prefers mechanized-capable players, supported by infantry/tanks. Support is secondary."
+      },
+      "roleWeights": {
+        "infantry": 1.1,
+        "motorized_infantry": 1.25,
+        "assault_infantry": 1.2,
+        "mechanical": 1.45,
+        "tanks": 1.15,
+        "heavy_tanks": 1.05,
+        "artillery": 0.8,
+        "at_artillery": 0.9,
+        "aa_artillery": 0.85,
+        "spg": 0.8,
+        "sapper": 1.0
+      },
+      "compositionTargets": {
+        "infantry": 2,
+        "tanks": 1,
+        "mechanical": 2,
+        "support": 0
+      },
+      "specialTargets": {},
+      "overrides": {
+        "counterWeightMultiplier": 0.7,
+        "universalWeightMultiplier": 1.0
+      }
+    },
+    "tanks_focus": {
+      "display": {
+        "ru": "tanks_focus — танковое давление (много механки)",
+        "en": "tanks_focus — tank pressure (with mech)"
+      },
+      "description": {
+        "ru": "Приоритет танкам и механику; пехота — вспомогательная, поддержка минимальна.",
+        "en": "Prioritizes tanks and mechanized roles; infantry is auxiliary; support is minimized."
+      },
+      "roleWeights": {
+        "infantry": 0.95,
+        "motorized_infantry": 1.05,
+        "assault_infantry": 1.05,
+        "mechanical": 1.35,
+        "tanks": 1.6,
+        "heavy_tanks": 1.45,
+        "artillery": 0.55,
+        "at_artillery": 0.75,
+        "aa_artillery": 0.65,
+        "spg": 0.55,
+        "sapper": 1.0
+      },
+      "compositionTargets": {
+        "infantry": 1,
+        "tanks": 3,
+        "mechanical": 1,
+        "support": 0
+      },
+      "specialTargets": {},
+      "overrides": {
+        "counterWeightMultiplier": 0.7,
+        "universalWeightMultiplier": 0.95
+      }
+    },
+    "heavy_armor_dominance": {
+      "display": {
+        "ru": "heavy_armor_dominance — минимум 2 тяжёлых танка",
+        "en": "heavy_armor_dominance — at least 2 heavy armor"
+      },
+      "description": {
+        "ru": "Ставит цель: в составе должны быть хотя бы 2 игрока, которые могут на тяжёлых танках.",
+        "en": "Sets a hard goal (softly enforced): at least 2 players capable of heavy tanks."
+      },
+      "roleWeights": {
+        "infantry": 1.0,
+        "motorized_infantry": 1.0,
+        "assault_infantry": 1.0,
+        "mechanical": 1.1,
+        "tanks": 1.35,
+        "heavy_tanks": 1.8,
+        "artillery": 0.75,
+        "at_artillery": 0.95,
+        "aa_artillery": 0.8,
+        "spg": 0.75,
+        "sapper": 1.0
+      },
+      "compositionTargets": {
+        "infantry": 2,
+        "tanks": 2,
+        "mechanical": 1,
+        "support": 0
+      },
+      "specialTargets": {
+        "heavy_tanks": 2
+      },
+      "overrides": {
+        "counterWeightMultiplier": 0.8,
+        "universalWeightMultiplier": 0.95
+      }
+    },
+    "anti_tank_network": {
+      "display": {
+        "ru": "anti_tank_network — ПТО/поддержка + 2 танка",
+        "en": "anti_tank_network — AT/support + 2 tanks"
+      },
+      "description": {
+        "ru": "Хочет минимум 1 игрока под ПТО/саппорт и минимум 2 танковых компетенции. ПТО ценится выше обычной арты.",
+        "en": "Wants at least 1 AT/support player and at least 2 tank competences. AT is valued above regular artillery."
+      },
+      "roleWeights": {
+        "infantry": 1.0,
+        "motorized_infantry": 1.0,
+        "assault_infantry": 1.0,
+        "mechanical": 1.1,
+        "tanks": 1.25,
+        "heavy_tanks": 1.2,
+        "artillery": 1.15,
+        "at_artillery": 1.75,
+        "aa_artillery": 0.95,
+        "spg": 1.05,
+        "sapper": 1.0
+      },
+      "compositionTargets": {
+        "infantry": 1,
+        "tanks": 2,
+        "mechanical": 1,
+        "support": 1
+      },
+      "specialTargets": {
+        "at_artillery": 1
+      },
+      "overrides": {
+        "counterWeightMultiplier": 1.1,
+        "universalWeightMultiplier": 0.95
+      }
+    },
+    "infantry_swarm": {
+      "display": {
+        "ru": "infantry_swarm — упор на пехоту (минимум 3)",
+        "en": "infantry_swarm — infantry swarm (min 3)"
+      },
+      "description": {
+        "ru": "Собирает минимум 3 пехотных компетенции, техника — опционально.",
+        "en": "Builds at least 3 infantry competences; vehicles are optional."
+      },
+      "roleWeights": {
+        "infantry": 1.75,
+        "motorized_infantry": 1.55,
+        "assault_infantry": 1.5,
+        "mechanical": 1.0,
+        "tanks": 0.95,
+        "heavy_tanks": 0.9,
+        "artillery": 0.75,
+        "at_artillery": 0.85,
+        "aa_artillery": 0.8,
+        "spg": 0.75,
+        "sapper": 1.35
+      },
+      "compositionTargets": {
+        "infantry": 3,
+        "tanks": 1,
+        "mechanical": 1,
+        "support": 0
+      },
+      "specialTargets": {},
+      "overrides": {
+        "counterWeightMultiplier": 0.7,
+        "universalWeightMultiplier": 1.0
+      }
+    },
+    "universal_flex_pick": {
+      "display": {
+        "ru": "universal_flex_pick — универсалы и гибкость",
+        "en": "universal_flex_pick — universal flex"
+      },
+      "description": {
+        "ru": "Сильнее ценит универсальных игроков (много ролей). Всё равно не тратит универсала на поддержку, если есть спецы.",
+        "en": "Values universal players (many roles) more. Still avoids spending universals on support if specialists exist."
+      },
+      "roleWeights": {
+        "infantry": 1.15,
+        "motorized_infantry": 1.1,
+        "assault_infantry": 1.1,
+        "mechanical": 1.15,
+        "tanks": 1.2,
+        "heavy_tanks": 1.15,
+        "artillery": 0.95,
+        "at_artillery": 1.0,
+        "aa_artillery": 0.9,
+        "spg": 0.9,
+        "sapper": 1.05
+      },
+      "compositionTargets": {
+        "infantry": 2,
+        "tanks": 2,
+        "mechanical": 1,
+        "support": 1
+      },
+      "specialTargets": {},
+      "overrides": {
+        "counterWeightMultiplier": 0.9,
+        "universalWeightMultiplier": 1.6
+      }
+    },
+    "tactic_2_2_1": {
+      "display": {
+        "ru": "tactic_2_2_1 — 2 пехоты / 2 танка / 1 поддержка",
+        "en": "tactic_2_2_1 — 2 infantry / 2 tanks / 1 support"
+      },
+      "description": {
+        "ru": "Классическая схема: 2 пехоты, 2 танковых компетенции и 1 игрок под поддержку (арт/ПТО/САУ/ПВО).",
+        "en": "Classic layout: 2 infantry, 2 tank competences, and 1 support player (arty/AT/SPG/AA)."
+      },
+      "roleWeights": {
+        "infantry": 1.35,
+        "motorized_infantry": 1.2,
+        "assault_infantry": 1.15,
+        "mechanical": 0.95,
+        "tanks": 1.35,
+        "heavy_tanks": 1.25,
+        "artillery": 1.05,
+        "at_artillery": 1.2,
+        "aa_artillery": 0.95,
+        "spg": 1.0,
+        "sapper": 1.1
+      },
+      "compositionTargets": {
+        "infantry": 2,
+        "tanks": 2,
+        "mechanical": 0,
+        "support": 1
+      },
+      "specialTargets": {},
+      "overrides": {
+        "counterWeightMultiplier": 0.9,
+        "universalWeightMultiplier": 1.0
+      }
+    },
+    "tactic_3_2": {
+      "display": {
+        "ru": "tactic_3_2 — 3 танка / 2 пехоты (без поддержки)",
+        "en": "tactic_3_2 — 3 tanks / 2 infantry (no support)"
+      },
+      "description": {
+        "ru": "Состав без поддержки: 3 танковых компетенции и 2 пехоты. Поддержка сильно занижена, но не запрещена.",
+        "en": "No-support roster: 3 tank competences and 2 infantry. Support is strongly de-prioritized but not forbidden."
+      },
+      "roleWeights": {
+        "infantry": 1.25,
+        "motorized_infantry": 1.15,
+        "assault_infantry": 1.1,
+        "mechanical": 0.9,
+        "tanks": 1.75,
+        "heavy_tanks": 1.55,
+        "artillery": 0.45,
+        "at_artillery": 0.65,
+        "aa_artillery": 0.55,
+        "spg": 0.45,
+        "sapper": 1.0
+      },
+      "compositionTargets": {
+        "infantry": 2,
+        "tanks": 3,
+        "mechanical": 0,
+        "support": 0
+      },
+      "specialTargets": {},
+      "overrides": {
+        "counterWeightMultiplier": 0.7,
+        "universalWeightMultiplier": 0.95
+      }
+    }
+  }
+}
