@@ -5,10 +5,13 @@
     "mmr": 2000,
     "dpm": 25000,
     "roles": [
-      "tanks",
-      "artillery",
       "infantry",
-      "mechanical"
+      "motorized_infantry",
+      "assault_infantry",
+      "mechanical",
+      "tanks",
+      "at_artillery",
+      "sapper"
     ]
   },
   {
@@ -17,10 +20,14 @@
     "mmr": 1900,
     "dpm": 25000,
     "roles": [
-      "tanks",
       "infantry",
-      "artillery",
-      "mechanical"
+      "motorized_infantry",
+      "mechanical",
+      "tanks",
+      "heavy_tanks",
+      "at_artillery",
+      "aa_artillery",
+      "sapper"
     ]
   },
   {
@@ -30,9 +37,12 @@
     "dpm": 25000,
     "roles": [
       "infantry",
+      "motorized_infantry",
+      "assault_infantry",
+      "mechanical",
       "tanks",
-      "artillery",
-      "mechanical"
+      "at_artillery",
+      "sapper"
     ]
   },
   {
@@ -50,8 +60,11 @@
     "mmr": 1600,
     "dpm": 20000,
     "roles": [
+      "infantry",
+      "motorized_infantry",
+      "assault_infantry",
       "mechanical",
-      "infantry"
+      "tanks"
     ]
   },
   {
@@ -61,7 +74,10 @@
     "dpm": 20000,
     "roles": [
       "infantry",
-      "mechanical"
+      "motorized_infantry",
+      "assault_infantry",
+      "mechanical",
+      "sapper"
     ]
   },
   {
@@ -70,7 +86,8 @@
     "mmr": 1500,
     "dpm": 20000,
     "roles": [
-      "tanks"
+      "tanks",
+      "heavy_tanks"
     ]
   },
   {
@@ -80,6 +97,8 @@
     "dpm": 20000,
     "roles": [
       "infantry",
+      "motorized_infantry",
+      "assault_infantry",
       "mechanical"
     ]
   },
@@ -89,7 +108,8 @@
     "mmr": 1540,
     "dpm": 20000,
     "roles": [
-      "tanks"
+      "tanks",
+      "heavy_tanks"
     ]
   },
   {
@@ -98,7 +118,9 @@
     "mmr": 1600,
     "dpm": 20000,
     "roles": [
-      "infantry"
+      "infantry",
+      "motorized_infantry",
+      "assault_infantry"
     ]
   },
   {
@@ -125,7 +147,8 @@
     "mmr": 1500,
     "dpm": 20000,
     "roles": [
-      "infantry"
+      "infantry",
+      "motorized_infantry"
     ]
   },
   {
@@ -134,7 +157,9 @@
     "mmr": 1650,
     "dpm": 20000,
     "roles": [
-      "tanks"
+      "mechanical",
+      "tanks",
+      "heavy_tanks"
     ]
   },
   {
@@ -179,7 +204,9 @@
     "mmr": 1500,
     "dpm": 18000,
     "roles": [
-      "artillery"
+      "artillery",
+      "at_artillery",
+      "spg"
     ]
   },
   {
@@ -246,9 +273,13 @@
     "dpm": 25000,
     "roles": [
       "infantry",
+      "motorized_infantry",
+      "assault_infantry",
+      "mechanical",
       "tanks",
+      "heavy_tanks",
       "artillery",
-      "mechanical"
+      "sapper"
     ]
   },
   {
