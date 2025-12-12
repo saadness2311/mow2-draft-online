@@ -98,125 +98,130 @@
       </div>
     </section>
 
-    <!-- Оффлайн драфт -->
+        <!-- Оффлайн драфт -->
     <section class="screen" id="screen-offline">
       <div class="screen-header">
         <button class="btn btn-secondary" id="btn-back-menu-1" data-i18n="common.backToMenu">Назад в меню</button>
         <h2 class="screen-title" data-i18n="offline.title">Оффлайн драфт</h2>
       </div>
 
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-title" data-i18n="offline.matchSettings">Настройки матча</div>
+      <!-- Этап 1: Настройка (можно сворачивать/разворачивать) -->
+      <div id="offline-setup-stage">
+        <details class="card details-card" id="offline-stage-match" open>
+          <summary class="details-summary"><span data-i18n="offline.matchSettings">Настройки матча</span></summary>
+          <div class="details-body">
+            <div class="form-row">
+              <label class="label" data-i18n="offline.modeLabel">Режим</label>
+              <select id="offline-mode-select" class="input">
+                <option value="human_vs_ai">Human vs AI</option>
+                <option value="ai_vs_ai">AI vs AI</option>
+                <option value="manual">Manual</option>
+              </select>
+            </div>
 
-          <div class="form-row">
-            <label class="label" data-i18n="offline.modeLabel">Режим</label>
-            <select id="offline-mode-select" class="input">
-              <option value="human_vs_ai">Human vs AI</option>
-              <option value="ai_vs_ai">AI vs AI</option>
-              <option value="manual">Manual</option>
-            </select>
+            <div class="form-row" id="offline-human-side-row">
+              <label class="label" data-i18n="offline.humanSideLabel">Сторона человека</label>
+              <select id="offline-human-side-select" class="input">
+                <option value="team1" data-i18n="offline.team1">Команда 1</option>
+                <option value="team2" data-i18n="offline.team2">Команда 2</option>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <label class="label" id="offline-strategy-team1-label" data-i18n="offline.strategyTeam1Label">Стратегия Team1</label>
+              <select id="offline-strategy-team1-select" class="input"></select>
+            </div>
+
+            <div class="form-row">
+              <label class="label" id="offline-strategy-team2-label" data-i18n="offline.strategyTeam2Label">Стратегия Team2</label>
+              <select id="offline-strategy-team2-select" class="input"></select>
+            </div>
+
+            <div class="hr"></div>
+
+            <div class="form-row">
+              <button class="btn" id="offline-reset-draft-btn" data-i18n="offline.resetDraft">Сбросить драфт</button>
+              <button class="btn btn-secondary" id="offline-reset-all-btn" data-i18n="offline.resetAll">Сбросить всё (пул+капитаны)</button>
+            </div>
+
+            <div class="form-row">
+              <label class="checkbox">
+                <input type="checkbox" id="offline-show-planning-checkbox" />
+                <span data-i18n="offline.showPlanning">Показывать дальний план</span>
+              </label>
+            </div>
+
+            <div class="small-note" id="offline-mode-hint"></div>
           </div>
+        </details>
 
-          <div class="form-row" id="offline-human-side-row">
-            <label class="label" data-i18n="offline.humanSideLabel">Сторона человека</label>
-            <select id="offline-human-side-select" class="input">
-              <option value="team1" data-i18n="offline.team1">Команда 1</option>
-              <option value="team2" data-i18n="offline.team2">Команда 2</option>
-            </select>
+        <details class="card details-card" id="offline-stage-captains" open>
+          <summary class="details-summary"><span data-i18n="offline.captainsTitle">Капитаны</span></summary>
+          <div class="details-body">
+            <div class="form-row">
+              <label class="label" data-i18n="offline.captain1Search">Поиск капитана 1</label>
+              <input id="offline-captain1-search" class="input" type="text" placeholder="..." />
+            </div>
+            <div class="form-row">
+              <label class="label" data-i18n="offline.captain1Select">Капитан команды 1</label>
+              <select id="offline-captain1-select" class="input"></select>
+            </div>
+
+            <div class="form-row">
+              <label class="label" data-i18n="offline.captain2Search">Поиск капитана 2</label>
+              <input id="offline-captain2-search" class="input" type="text" placeholder="..." />
+            </div>
+            <div class="form-row">
+              <label class="label" data-i18n="offline.captain2Select">Капитан команды 2</label>
+              <select id="offline-captain2-select" class="input"></select>
+            </div>
+
+            <div class="error-text" id="offline-captains-error"></div>
+            <div class="small-note" data-i18n="offline.captainsNote">
+              Капитаны учитываются в составе и в логике стратегий, но не выбираются как обычные пики.
+            </div>
           </div>
+        </details>
 
-          <div class="form-row">
-            <label class="label" id="offline-strategy-team1-label" data-i18n="offline.strategyTeam1Label">Стратегия Team1</label>
-            <select id="offline-strategy-team1-select" class="input"></select>
+        <details class="card details-card" id="offline-stage-pool" open>
+          <summary class="details-summary"><span data-i18n="offline.poolTitle">Пул игроков</span></summary>
+          <div class="details-body">
+            <div class="form-row">
+              <button class="btn" id="offline-pool-all-btn" data-i18n="offline.poolAll">Все игроки в пул</button>
+              <button class="btn" id="offline-pool-top20-btn" data-i18n="offline.poolTop20">Топ-20 по MMR</button>
+              <button class="btn btn-secondary" id="offline-pool-clear-btn" data-i18n="offline.poolClear">Очистить пул</button>
+            </div>
+
+            <div class="scroll-panel tall">
+              <table class="table" id="offline-pool-table">
+                <thead>
+                  <tr>
+                    <th data-i18n="common.inPool">В пуле</th>
+                    <th data-i18n="common.name">Имя</th>
+                    <th data-i18n="common.tier">Tier</th>
+                    <th data-i18n="common.mmr">MMR</th>
+                    <th data-i18n="common.dpm">DPM</th>
+                    <th data-i18n="common.roles">Роли</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+
+            <div class="small-note" data-i18n="offline.poolNote">
+              В пул попадают только кандидаты на пики (капитаны не управляются пулом).
+            </div>
           </div>
-
-          <div class="form-row">
-            <label class="label" id="offline-strategy-team2-label" data-i18n="offline.strategyTeam2Label">Стратегия Team2</label>
-            <select id="offline-strategy-team2-select" class="input"></select>
-          </div>
-
-          <div class="hr"></div>
-
-          <div class="form-row">
-            <button class="btn" id="offline-reset-draft-btn" data-i18n="offline.resetDraft">Сбросить драфт</button>
-            <button class="btn btn-secondary" id="offline-reset-all-btn" data-i18n="offline.resetAll">Сбросить всё (пул+капитаны)</button>
-          </div>
-
-          <div class="form-row">
-            <label class="checkbox">
-              <input type="checkbox" id="offline-show-planning-checkbox" />
-              <span data-i18n="offline.showPlanning">Показывать дальний план</span>
-            </label>
-          </div>
-
-          <div class="small-note" id="offline-mode-hint"></div>
-        </div>
-
-        <div class="card">
-          <div class="card-title" data-i18n="offline.captainsTitle">Капитаны</div>
-
-          <div class="form-row">
-            <label class="label" data-i18n="offline.captain1Search">Поиск капитана 1</label>
-            <input id="offline-captain1-search" class="input" type="text" placeholder="..." />
-          </div>
-          <div class="form-row">
-            <label class="label" data-i18n="offline.captain1Select">Капитан команды 1</label>
-            <select id="offline-captain1-select" class="input"></select>
-          </div>
-
-          <div class="form-row">
-            <label class="label" data-i18n="offline.captain2Search">Поиск капитана 2</label>
-            <input id="offline-captain2-search" class="input" type="text" placeholder="..." />
-          </div>
-          <div class="form-row">
-            <label class="label" data-i18n="offline.captain2Select">Капитан команды 2</label>
-            <select id="offline-captain2-select" class="input"></select>
-          </div>
-
-          <div class="error-text" id="offline-captains-error"></div>
-          <div class="small-note" data-i18n="offline.captainsNote">
-            Капитаны учитываются в составе и в логике стратегий, но не выбираются как обычные пики.
-          </div>
-        </div>
+        </details>
       </div>
 
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-title" data-i18n="offline.poolTitle">Пул игроков</div>
-
-          <div class="form-row">
-            <button class="btn" id="offline-pool-all-btn" data-i18n="offline.poolAll">Все игроки в пул</button>
-            <button class="btn" id="offline-pool-top20-btn" data-i18n="offline.poolTop20">Топ-20 по MMR</button>
-            <button class="btn btn-secondary" id="offline-pool-clear-btn" data-i18n="offline.poolClear">Очистить пул</button>
-          </div>
-
-          <div class="scroll-panel tall">
-            <table class="table" id="offline-pool-table">
-              <thead>
-                <tr>
-                  <th data-i18n="common.inPool">В пуле</th>
-                  <th data-i18n="common.name">Имя</th>
-                  <th data-i18n="common.tier">Tier</th>
-                  <th data-i18n="common.mmr">MMR</th>
-                  <th data-i18n="common.dpm">DPM</th>
-                  <th data-i18n="common.roles">Роли</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-
-          <div class="small-note" data-i18n="offline.poolNote">
-            В пул попадают только кандидаты на пики (капитаны не управляются пулом).
-          </div>
-        </div>
-
-        <div class="card">
+      <!-- Этап 2: Драфт -->
+      <div id="offline-draft-stage">
+        <div class="card" id="offline-draft-state-card">
           <div class="card-title" data-i18n="offline.draftStateTitle">Текущее состояние драфта</div>
           <div class="status-text" id="offline-draft-status"></div>
 
-          <div class="form-row">
+          <div class="form-row" id="offline-start-draft-row">
             <button class="btn" id="offline-start-draft-btn" data-i18n="offline.startDraft">Начать драфт</button>
             <span class="small-note" id="offline-start-draft-hint"></span>
           </div>
@@ -240,61 +245,56 @@
               <ul class="list" id="offline-team2-list"></ul>
             </div>
           </div>
-
-          <div class="hr"></div>
-
-          <div class="subcard">
-            <div class="subcard-title" data-i18n="offline.pickOrder">Порядок пиков</div>
-            <ol class="list" id="offline-draft-order"></ol>
-          </div>
-        </div>
-      </div>
-
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-title" data-i18n="offline.availablePlayers">Доступные игроки</div>
-          <div class="small-note" id="offline-available-note"></div>
-
-          <div class="scroll-panel tall" id="offline-available-list"></div>
         </div>
 
-        <div class="card">
-          <div class="card-title" data-i18n="offline.hintsTitle">Подсказки и планирование</div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title" data-i18n="offline.availablePlayers">Доступные игроки</div>
+            <div class="small-note" id="offline-available-note"></div>
 
-          <div class="hints-grid">
-            <div class="hint-panel" id="hint-panel-team1">
-              <div class="hint-title" id="hint-team1-title" data-i18n="offline.hintsTeam1">Подсказки Team1</div>
-              <div class="hint-best" id="offline-hint-team1-best"></div>
-              <div class="hint-alts" id="offline-hint-team1-alts"></div>
-              <div class="planning-block" id="offline-plan-team1"></div>
-            </div>
-
-            <div class="hint-panel" id="hint-panel-team2">
-              <div class="hint-title" id="hint-team2-title" data-i18n="offline.hintsTeam2">Подсказки Team2</div>
-              <div class="hint-best" id="offline-hint-team2-best"></div>
-              <div class="hint-alts" id="offline-hint-team2-alts"></div>
-              <div class="planning-block" id="offline-plan-team2"></div>
-            </div>
+            <div class="scroll-panel tall" id="offline-available-list"></div>
           </div>
 
-          <div class="small-note" id="offline-hints-note"></div>
+          <div class="card">
+            <div class="card-title" data-i18n="offline.hintsTitle">Подсказки и планирование</div>
+
+            <div class="hints-grid">
+              <div class="hint-panel" id="hint-panel-team1">
+                <div class="hint-title" id="hint-team1-title" data-i18n="offline.hintsTeam1">Подсказки Team1</div>
+                <div class="hint-best" id="offline-hint-team1-best"></div>
+                <div class="hint-alts" id="offline-hint-team1-alts"></div>
+                <div class="planning-block" id="offline-plan-team1"></div>
+              </div>
+
+              <div class="hint-panel" id="hint-panel-team2">
+                <div class="hint-title" id="hint-team2-title" data-i18n="offline.hintsTeam2">Подсказки Team2</div>
+                <div class="hint-best" id="offline-hint-team2-best"></div>
+                <div class="hint-alts" id="offline-hint-team2-alts"></div>
+                <div class="planning-block" id="offline-plan-team2"></div>
+              </div>
+            </div>
+
+            <div class="small-note" id="offline-hints-note"></div>
+          </div>
         </div>
-      </div>
 
-      <div class="card">
-        <div class="card-title" data-i18n="offline.exportTitle">Экспорт результата</div>
+        <!-- Этап 3: Экспорт (авто-раскрывается после завершения) -->
+        <details class="card details-card" id="offline-export-details">
+          <summary class="details-summary"><span data-i18n="offline.exportTitle">Экспорт результата</span></summary>
+          <div class="details-body">
+            <div class="form-row">
+              <button class="btn" id="offline-finish-btn" data-i18n="offline.finishDraft">Завершить драфт</button>
+              <button class="btn btn-secondary" id="offline-copy-export-btn" data-i18n="offline.copyExport">Скопировать в буфер</button>
+              <span class="small-note" id="offline-export-status"></span>
+            </div>
 
-        <div class="form-row">
-          <button class="btn" id="offline-finish-btn" data-i18n="offline.finishDraft">Завершить драфт</button>
-          <button class="btn btn-secondary" id="offline-copy-export-btn" data-i18n="offline.copyExport">Скопировать в буфер</button>
-          <span class="small-note" id="offline-export-status"></span>
-        </div>
-
-        <textarea id="offline-export-text" class="textarea" rows="12" readonly></textarea>
+            <textarea id="offline-export-text" class="textarea" rows="12" readonly></textarea>
+          </div>
+        </details>
       </div>
     </section>
 
-    <!-- Игроки -->
+<!-- Игроки -->
     <section class="screen" id="screen-players">
       <div class="screen-header">
         <button class="btn btn-secondary" id="btn-back-menu-2" data-i18n="common.backToMenu">Назад в меню</button>

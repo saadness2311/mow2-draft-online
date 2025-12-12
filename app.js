@@ -1129,6 +1129,36 @@
   // ------------------------------------------------------
 
   const themeModule = (function () {
+    function svgDataUri(svg) {
+      return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg);
+    }
+
+    const DEFAULT_LOGO_DATAURI = svgDataUri(
+      "<svg xmlns='http://www.w3.org/2000/svg' width='240' height='120' viewBox='0 0 240 120'>" +
+      "<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%230b0f12'/><stop offset='1' stop-color='%2310161b'/></linearGradient></defs>" +
+      "<rect width='240' height='120' rx='14' fill='url(%23g)' stroke='rgba(255,255,255,0.12)'/>" +
+      "<rect x='14' y='14' width='6' height='92' rx='3' fill='%237a1f1f'/>" +
+      "<text x='34' y='54' fill='rgba(255,255,255,0.92)' font-family='ui-sans-serif,system-ui,Segoe UI,Roboto,Arial' font-size='20' font-weight='700'>MoW2</text>" +
+      "<text x='34' y='80' fill='rgba(255,255,255,0.72)' font-family='ui-sans-serif,system-ui,Segoe UI,Roboto,Arial' font-size='12'>Draft Project</text>" +
+      "</svg>"
+    );
+
+    const DEFAULT_MENU_IMAGE_DATAURI = svgDataUri(
+      "<svg xmlns='http://www.w3.org/2000/svg' width='1280' height='720' viewBox='0 0 1280 720'>" +
+      "<defs>" +
+      "<linearGradient id='bg' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%230b0f12'/><stop offset='1' stop-color='%2314202a'/></linearGradient>" +
+      "<linearGradient id='a' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='rgba(122,31,31,0.55)'/><stop offset='1' stop-color='rgba(122,31,31,0.05)'/></linearGradient>" +
+      "</defs>" +
+      "<rect width='1280' height='720' fill='url(%23bg)'/>" +
+      "<path d='M0 520 C 240 420 420 660 680 560 C 920 468 1040 390 1280 440 L1280 720 L0 720 Z' fill='url(%23a)'/>" +
+      "<g stroke='rgba(255,255,255,0.08)'>" +
+      "<path d='M60 90 H1220'/><path d='M60 160 H1220'/><path d='M60 230 H1220'/><path d='M60 300 H1220'/><path d='M60 370 H1220'/><path d='M60 440 H1220'/>" +
+      "</g>" +
+      "<text x='60' y='640' fill='rgba(255,255,255,0.7)' font-family='ui-sans-serif,system-ui,Segoe UI,Roboto,Arial' font-size='36' font-weight='700'>MoW2 Draft</text>" +
+      "<text x='60' y='678' fill='rgba(255,255,255,0.55)' font-family='ui-sans-serif,system-ui,Segoe UI,Roboto,Arial' font-size='18'>Default image (upload your own in Appearance)</text>" +
+      "</svg>"
+    );
+
     function applyTheme() {
       const ui = dataModule.getUiSettings();
       const accent = ui.accentColor || "#7a1f1f";
@@ -1143,24 +1173,14 @@
 
       const logo = $("app-logo");
       if (logo) {
-        if (ui.logoDataUrl) {
-          logo.src = ui.logoDataUrl;
-          logo.style.opacity = "1";
-        } else {
-          logo.removeAttribute("src");
-          logo.style.opacity = "0.35";
-        }
+        logo.src = ui.logoDataUrl || DEFAULT_LOGO_DATAURI;
+        logo.style.opacity = "1";
       }
 
       const menuImg = $("menu-fun-image");
       if (menuImg) {
-        if (ui.menuImageDataUrl) {
-          menuImg.src = ui.menuImageDataUrl;
-          menuImg.style.opacity = "1";
-        } else {
-          menuImg.removeAttribute("src");
-          menuImg.style.opacity = "0.35";
-        }
+        menuImg.src = ui.menuImageDataUrl || DEFAULT_MENU_IMAGE_DATAURI;
+        menuImg.style.opacity = "1";
       }
 
       const accentPicker = $("appearance-accent-color");
@@ -2013,6 +2033,20 @@
       pool: { inPool: {} }
     };
 
+    let aiLoopTimer = null;
+
+    function clearAiLoopTimer() {
+      if (aiLoopTimer) {
+        clearTimeout(aiLoopTimer);
+        aiLoopTimer = null;
+      }
+    }
+
+    function scheduleAiLoop(delayMs) {
+      clearAiLoopTimer();
+      aiLoopTimer = setTimeout(runAiIfNeeded, Math.max(0, Number(delayMs) || 0));
+    }
+
     function saveDraftLocal() {
       const obj = { settings: settings, state: state };
       localStorage.setItem(LOCAL_STORAGE_KEYS.OFFLINE_DRAFT, JSON.stringify(obj));
@@ -2033,7 +2067,6 @@
       }
 
       if (obj.state && typeof obj.state === "object") {
-        // we load only safe fields; captains and pool are kept
         state.status = obj.state.status || "idle";
         state.currentPickIndex = typeof obj.state.currentPickIndex === "number" ? obj.state.currentPickIndex : 0;
         state.team1 = obj.state.team1 || state.team1;
@@ -2043,7 +2076,37 @@
       }
     }
 
+    function ensurePoolMap() {
+      if (!state.pool || !state.pool.inPool) {
+        state.pool = { inPool: {} };
+      }
+    }
+
+    function setSetupDetailsOpen(openValue) {
+      ["offline-stage-match", "offline-stage-captains", "offline-stage-pool"].forEach((id) => {
+        const el = $(id);
+        if (el && typeof el.open === "boolean") {
+          el.open = !!openValue;
+        }
+      });
+    }
+
+    function setExportDetailsOpen(openValue) {
+      const el = $("offline-export-details");
+      if (el && typeof el.open === "boolean") {
+        el.open = !!openValue;
+      }
+    }
+
+    function clearExportUi() {
+      const statusEl = $("offline-export-status");
+      if (statusEl) setText(statusEl, "");
+      const ta = $("offline-export-text");
+      if (ta) ta.value = "";
+    }
+
     function resetAll() {
+      clearAiLoopTimer();
       state.status = "idle";
       state.currentPickIndex = 0;
       state.team1.captain = null;
@@ -2052,16 +2115,11 @@
       state.team2.players = [];
       state.picks = [];
       state.pool = { inPool: {} };
-      saveDraftLocal();
-      renderAll();
-    }
 
-    function resetDraftOnly() {
-      state.status = "idle";
-      state.currentPickIndex = 0;
-      state.picks = [];
-      // Keep captains and pool
-      rebuildCaptainPlayers();
+      clearExportUi();
+      setExportDetailsOpen(false);
+      setSetupDetailsOpen(true);
+
       saveDraftLocal();
       renderAll();
     }
@@ -2072,6 +2130,7 @@
 
       const cap1 = state.team1.captain;
       const cap2 = state.team2.captain;
+
       if (cap1) {
         const p = dataModule.getPlayerByName(cap1);
         if (p) state.team1.players.push(p);
@@ -2082,10 +2141,320 @@
       }
     }
 
-    function ensurePoolMap() {
-      if (!state.pool || !state.pool.inPool) {
-        state.pool = { inPool: {} };
+    function resetDraftOnly() {
+      clearAiLoopTimer();
+      state.status = "idle";
+      state.currentPickIndex = 0;
+      state.picks = [];
+
+      // Keep captains and pool
+      rebuildCaptainPlayers();
+
+      clearExportUi();
+      setExportDetailsOpen(false);
+      setSetupDetailsOpen(true);
+
+      saveDraftLocal();
+      renderAll();
+    }
+
+    function hasCaptainsSelected() {
+      return !!state.team1.captain && !!state.team2.captain;
+    }
+
+    function getPickedNameSet() {
+      const set = {};
+      (state.team1.players || []).forEach((p) => { set[p.name] = true; });
+      (state.team2.players || []).forEach((p) => { set[p.name] = true; });
+      return set;
+    }
+
+    function getAvailablePlayers() {
+      ensurePoolMap();
+      const inPool = state.pool.inPool || {};
+      const picked = getPickedNameSet();
+
+      const all = dataModule.getPlayers();
+      return all.filter((p) => {
+        if (!inPool[p.name]) return false;
+        if (picked[p.name]) return false;
+        if (p.name === state.team1.captain || p.name === state.team2.captain) return false;
+        return true;
+      });
+    }
+
+    function getStartReadiness() {
+      if (!state.team1.captain || !state.team2.captain) {
+        return { ok: false, code: "need_captains" };
       }
+      const availableCount = getAvailablePlayers().length;
+      const required = DRAFT_ORDER.length;
+      if (availableCount < required) {
+        return { ok: false, code: "need_pool", have: availableCount, need: required };
+      }
+      return { ok: true, have: availableCount, need: required };
+    }
+
+    function startDraft() {
+      const ready = getStartReadiness();
+      if (!ready.ok) return ready;
+
+      clearAiLoopTimer();
+
+      state.status = "draft";
+      state.currentPickIndex = 0;
+      state.picks = [];
+
+      rebuildCaptainPlayers();
+
+      clearExportUi();
+      setExportDetailsOpen(false);
+
+      saveDraftLocal();
+      return ready;
+    }
+
+    function getCurrentPickMeta() {
+      if (state.currentPickIndex < 0 || state.currentPickIndex >= DRAFT_ORDER.length) return null;
+      return DRAFT_ORDER[state.currentPickIndex];
+    }
+
+    function onDraftFinished() {
+      state.status = "finished";
+      saveDraftLocal();
+
+      generateExportText();
+      setExportDetailsOpen(true);
+
+      const exportDetails = $("offline-export-details");
+      if (exportDetails && exportDetails.scrollIntoView) {
+        try {
+          exportDetails.scrollIntoView({ behavior: "smooth", block: "start" });
+        } catch (err) {
+          exportDetails.scrollIntoView();
+        }
+      }
+    }
+
+    function applyPick(teamKey, player) {
+      if (!player) return;
+
+      if (teamKey === "team1") state.team1.players.push(player);
+      else state.team2.players.push(player);
+
+      state.picks.push({ team: teamKey, playerName: player.name });
+      state.currentPickIndex += 1;
+
+      if (state.currentPickIndex >= DRAFT_ORDER.length) {
+        onDraftFinished();
+      } else {
+        state.status = "draft";
+        saveDraftLocal();
+      }
+    }
+
+    function canHumanClickNow() {
+      if (state.status !== "draft") return false;
+      if (settings.mode === "ai_vs_ai") return false;
+
+      const meta = getCurrentPickMeta();
+      if (!meta) return false;
+
+      if (settings.mode === "manual") return true;
+
+      // human_vs_ai: human can click only for its side
+      if (settings.mode === "human_vs_ai") {
+        return meta.team === settings.humanSide;
+      }
+
+      return false;
+    }
+
+    function fallbackPick(available) {
+      const arr = (available || []).slice();
+      arr.sort((a, b) => (b.mmr || 0) - (a.mmr || 0));
+      return arr.length ? arr[0] : null;
+    }
+
+    function doAiPick(teamKey) {
+      const available = getAvailablePlayers();
+      if (!available.length) {
+        // No candidates -> skip pick
+        state.currentPickIndex += 1;
+        if (state.currentPickIndex >= DRAFT_ORDER.length) {
+          onDraftFinished();
+        } else {
+          state.status = "draft";
+          saveDraftLocal();
+        }
+        return;
+      }
+
+      const strat = teamKey === "team1" ? settings.strategyTeam1 : settings.strategyTeam2;
+      const own = teamKey === "team1" ? state.team1.players : state.team2.players;
+      const enemy = teamKey === "team1" ? state.team2.players : state.team1.players;
+
+      let picked = null;
+      try {
+        picked = aiModule.pickPlayerAi(available, {
+          ownTeamPlayers: own,
+          enemyTeamPlayers: enemy,
+          availablePlayers: available,
+          strategyKey: strat
+        });
+      } catch (err) {
+        console.error("AI pick error:", err);
+        picked = null;
+      }
+
+      if (!picked) {
+        picked = fallbackPick(available);
+      }
+
+      if (picked) {
+        applyPick(teamKey, picked);
+      }
+    }
+
+    function runAiIfNeeded() {
+      if (state.status !== "draft") {
+        clearAiLoopTimer();
+        return;
+      }
+
+      const meta = getCurrentPickMeta();
+      if (!meta) {
+        onDraftFinished();
+        renderAll();
+        return;
+      }
+
+      const mode = settings.mode;
+      if (mode === "manual") {
+        return;
+      }
+
+      if (mode === "ai_vs_ai") {
+        doAiPick(meta.team);
+        renderAll();
+        if (state.status === "draft") {
+          scheduleAiLoop(80);
+        }
+        return;
+      }
+
+      if (mode === "human_vs_ai") {
+        const isHumanTurn = meta.team === settings.humanSide;
+        if (isHumanTurn) {
+          renderAll();
+          return;
+        }
+
+        doAiPick(meta.team);
+        renderAll();
+
+        // If next pick is also AI side (double pick), continue
+        if (state.status === "draft") {
+          const next = getCurrentPickMeta();
+          if (next && next.team !== settings.humanSide) {
+            scheduleAiLoop(80);
+          }
+        }
+      }
+    }
+
+    function handleAvailableClick(playerName) {
+      if (state.status !== "draft") return;
+      if (!canHumanClickNow()) return;
+
+      const player = dataModule.getPlayerByName(playerName);
+      if (!player) return;
+
+      const meta = getCurrentPickMeta();
+      if (!meta) return;
+
+      applyPick(meta.team, player);
+      renderAll();
+
+      if (settings.mode === "human_vs_ai") {
+        scheduleAiLoop(80);
+      }
+    }
+
+    function updateStartDraftUI() {
+      const row = $("offline-start-draft-row");
+      const btn = $("offline-start-draft-btn");
+      const hint = $("offline-start-draft-hint");
+      if (!btn) return;
+
+      const lang = i18nModule.getLanguage();
+
+      if (state.status === "finished") {
+        if (row) row.classList.add("hidden");
+        btn.disabled = true;
+        if (hint) setText(hint, "");
+        return;
+      }
+
+      if (row) row.classList.remove("hidden");
+
+      if (state.status === "draft") {
+        btn.disabled = true;
+        if (hint) {
+          setText(hint, lang === "en" ? "Draft started." : "Драфт начался.");
+        }
+        return;
+      }
+
+      // idle
+      const ready = getStartReadiness();
+      btn.disabled = !ready.ok;
+
+      if (!hint) return;
+
+      if (!ready.ok) {
+        if (ready.code === "need_captains") {
+          setText(hint, lang === "en" ? "Select captains for both teams." : "Выберите капитанов для обеих команд.");
+        } else if (ready.code === "need_pool") {
+          setText(hint, (lang === "en" ? "Not enough players in pool: " : "Недостаточно игроков в пуле: ") + String(ready.have) + "/" + String(ready.need));
+        } else {
+          setText(hint, lang === "en" ? "Draft is not ready." : "Драфт не готов.");
+        }
+        return;
+      }
+
+      setText(hint, (lang === "en" ? "Ready. Pool candidates: " : "Готово. Кандидатов в пуле: ") + String(ready.have) + "/" + String(ready.need));
+    }
+
+    function handleStartDraftClick() {
+      if (state.status !== "idle") return;
+
+      const ready = startDraft();
+      updateStartDraftUI();
+      renderAll();
+
+      if (!ready || !ready.ok) {
+        return;
+      }
+
+      // Collapse setup stage (can be expanded manually)
+      setSetupDetailsOpen(false);
+
+      // Close export stage until finished
+      setExportDetailsOpen(false);
+
+      // Scroll to draft stage
+      const stage = $("offline-draft-stage");
+      if (stage && stage.scrollIntoView) {
+        try {
+          stage.scrollIntoView({ behavior: "smooth", block: "start" });
+        } catch (err) {
+          stage.scrollIntoView();
+        }
+      }
+
+      // Start AI if needed (AI vs AI or AI first-turn in Human vs AI)
+      scheduleAiLoop(50);
     }
 
     function handleModeChange() {
@@ -2105,12 +2474,22 @@
       // Mode hint
       const hintEl = $("offline-mode-hint");
       if (hintEl) {
+        const lang = i18nModule.getLanguage();
         if (settings.mode === "human_vs_ai") {
-          setText(hintEl, "Human vs AI: человек пикает за свою сторону, ИИ пикает за вторую.");
+          setText(hintEl, lang === "en"
+            ? "Human vs AI: you pick for your side; AI picks for the opponent."
+            : "Human vs AI: человек пикает за свою сторону, ИИ пикает за вторую."
+          );
         } else if (settings.mode === "ai_vs_ai") {
-          setText(hintEl, "AI vs AI: клики отключены, обе стороны пикает ИИ.");
+          setText(hintEl, lang === "en"
+            ? "AI vs AI: clicks are disabled; AI drafts for both teams."
+            : "AI vs AI: клики отключены, обе стороны пикает ИИ."
+          );
         } else {
-          setText(hintEl, "Manual: человек пикает за обе стороны по очереди, подсказки активны для обеих команд.");
+          setText(hintEl, lang === "en"
+            ? "Manual: you draft for both teams in turn; hints are shown for both sides."
+            : "Manual: человек пикает за обе стороны по очереди, подсказки активны для обеих команд."
+          );
         }
       }
 
@@ -2120,7 +2499,6 @@
     function updateStrategyLabelsForMode() {
       const l1 = $("offline-strategy-team1-label");
       const l2 = $("offline-strategy-team2-label");
-
       if (!l1 || !l2) return;
 
       if (settings.mode === "manual") {
@@ -2165,8 +2543,9 @@
         });
       }
 
-      // fill strategy selects
+      // Fill strategy selects
       const keys = aiModule.getStrategyKeyListSafe();
+
       function fillStrategySelect(sel) {
         if (!sel) return;
         sel.innerHTML = "";
@@ -2177,6 +2556,7 @@
           sel.appendChild(opt);
         });
       }
+
       fillStrategySelect(s1);
       fillStrategySelect(s2);
 
@@ -2207,7 +2587,7 @@
         });
       }
 
-      // side row visibility
+      // Side row visibility
       const sideRow = $("offline-human-side-row");
       if (sideRow) {
         sideRow.style.display = settings.mode === "human_vs_ai" ? "" : "none";
@@ -2331,6 +2711,7 @@
           renderPoolTable();
           renderAvailableList();
           renderHintsAndPlanning();
+          updateStartDraftUI();
           saveDraftLocal();
         });
       }
@@ -2348,6 +2729,7 @@
           renderPoolTable();
           renderAvailableList();
           renderHintsAndPlanning();
+          updateStartDraftUI();
           saveDraftLocal();
         });
       }
@@ -2359,6 +2741,7 @@
           renderPoolTable();
           renderAvailableList();
           renderHintsAndPlanning();
+          updateStartDraftUI();
           saveDraftLocal();
         });
       }
@@ -2394,6 +2777,7 @@
 
           renderAvailableList();
           renderHintsAndPlanning();
+          updateStartDraftUI();
           saveDraftLocal();
         });
 
@@ -2424,375 +2808,69 @@
       });
     }
 
-    function getPickedNameSet() {
-      const set = {};
-      (state.team1.players || []).forEach((p) => { set[p.name] = true; });
-      (state.team2.players || []).forEach((p) => { set[p.name] = true; });
-      return set;
-    }
-
-    function getAvailablePlayers() {
-      ensurePoolMap();
-      const inPool = state.pool.inPool || {};
-      const picked = getPickedNameSet();
-
-      const all = dataModule.getPlayers();
-      return all.filter((p) => {
-        if (!inPool[p.name]) return false;
-        if (picked[p.name]) return false;
-        if (p.name === state.team1.captain || p.name === state.team2.captain) return false;
-        return true;
-      });
-    }
-
-    function ensureDraftStarted() {
-      if (!state.team1.captain || !state.team2.captain) return false;
-
-      if (state.status === "idle") {
-        state.status = "draft";
-        state.currentPickIndex = 0;
-        state.picks = [];
-
-        rebuildCaptainPlayers();
-      }
-      return true;
-    }
-
-    function getCurrentPickMeta() {
-      if (state.currentPickIndex < 0 || state.currentPickIndex >= DRAFT_ORDER.length) return null;
-      return DRAFT_ORDER[state.currentPickIndex];
-    }
-
-    function applyPick(teamKey, player) {
-      if (!player) return;
-
-      if (teamKey === "team1") state.team1.players.push(player);
-      else state.team2.players.push(player);
-
-      state.picks.push({ team: teamKey, playerName: player.name });
-      state.currentPickIndex += 1;
-
-      if (state.currentPickIndex >= DRAFT_ORDER.length) {
-        state.status = "finished";
-      } else {
-        state.status = "draft";
-      }
-
-      saveDraftLocal();
-    }
-
-    function canHumanClickNow() {
-      if (settings.mode === "ai_vs_ai") return false;
-
-      const meta = getCurrentPickMeta();
-      if (!meta) return false;
-
-      if (settings.mode === "manual") return true;
-
-      // human_vs_ai: human can click only for its side
-      if (settings.mode === "human_vs_ai") {
-        return meta.team === settings.humanSide;
-      }
-      return false;
-    }
-
-    function getStartDraftReadiness() {
-      // Draft requires both captains and enough candidates in pool to complete 8 picks.
-      // (Captains are not picks; DRAFT_ORDER contains only non-captain picks.)
-      const need = DRAFT_ORDER.length;
-      if (!state.team1.captain || !state.team2.captain) {
-        return { ok: false, reason: "captains", need: need, have: 0 };
-      }
-      if (state.status !== "idle") {
-        return { ok: false, reason: state.status, need: need, have: 0 };
-      }
-      const have = getAvailablePlayers().length;
-      if (have < need) {
-        return { ok: false, reason: "pool", need: need, have: have };
-      }
-      return { ok: true, reason: "ok", need: need, have: have };
-    }
-
-    function updateStartDraftControls() {
-      const btn = $("offline-start-draft-btn");
-      const hintEl = $("offline-start-draft-hint");
-      if (!btn) return;
-
-      const r = getStartDraftReadiness();
-      btn.disabled = !r.ok;
-
-      if (!hintEl) return;
-
-      if (r.ok) {
-        setText(hintEl, i18nModule.getLanguage() === "en"
-          ? "Ready to start."
-          : "Готово к старту."
-        );
-        return;
-      }
-
-      if (r.reason === "captains") {
-        setText(hintEl, i18nModule.getLanguage() === "en"
-          ? "Select captains for both teams."
-          : "Выберите капитанов для обеих команд."
-        );
-        return;
-      }
-
-      if (r.reason === "pool") {
-        setText(hintEl, i18nModule.getLanguage() === "en"
-          ? "Add at least " + r.need + " players to the pool (currently " + r.have + ")."
-          : "Добавьте в пул минимум " + r.need + " игроков (сейчас " + r.have + ")."
-        );
-        return;
-      }
-
-      if (r.reason === "draft") {
-        setText(hintEl, i18nModule.getLanguage() === "en"
-          ? "Draft is already running."
-          : "Драфт уже идёт."
-        );
-        return;
-      }
-
-      if (r.reason === "finished") {
-        setText(hintEl, i18nModule.getLanguage() === "en"
-          ? "Draft is finished. Use 'Reset draft' to start over."
-          : "Драфт завершён. Чтобы начать заново, нажмите «Сбросить драфт»."
-        );
-        return;
-      }
-
-      setText(hintEl, "");
-    }
-
-    function initStartDraftControls() {
-      const btn = $("offline-start-draft-btn");
-      if (!btn) return;
-
-      btn.addEventListener("click", function () {
-        const r = getStartDraftReadiness();
-        if (!r.ok) {
-          updateStartDraftControls();
-          return;
-        }
-
-        if (!ensureDraftStarted()) {
-          updateStartDraftControls();
-          return;
-        }
-
-        renderAll();
-
-        // If AI needs to pick first (or it is AI vs AI), kick the AI loop.
-        if (settings.mode !== "manual") {
-          setTimeout(runAiIfNeeded, 50);
-        }
-      });
-    }
-
-    function runAiIfNeeded() {
-      if (!ensureDraftStarted()) return;
-
-      if (state.status !== "draft") {
-        renderAll();
-        return;
-      }
-
-      const mode = settings.mode;
-      const meta = getCurrentPickMeta();
-      if (!meta) return;
-
-      const available = getAvailablePlayers();
-      if (!available.length) {
-        // no candidates -> skip
-        state.currentPickIndex += 1;
-        if (state.currentPickIndex >= DRAFT_ORDER.length) state.status = "finished";
-        saveDraftLocal();
-        renderAll();
-
-        // If the next pick is also AI-controlled, continue the AI loop so the draft doesn't stall.
-        if (state.status === "draft") {
-          if (mode === "ai_vs_ai") {
-            setTimeout(runAiIfNeeded, 80);
-          } else if (mode === "human_vs_ai") {
-            const nextMeta = getCurrentPickMeta();
-            if (nextMeta && nextMeta.team !== settings.humanSide) {
-              setTimeout(runAiIfNeeded, 80);
-            }
-          }
-        }
-        return;
-      }
-
-      if (mode === "ai_vs_ai") {
-        // Both sides AI, loop through
-        const teamKey = meta.team;
-        const strat = teamKey === "team1" ? settings.strategyTeam1 : settings.strategyTeam2;
-        const own = teamKey === "team1" ? state.team1.players : state.team2.players;
-        const enemy = teamKey === "team1" ? state.team2.players : state.team1.players;
-
-        const picked = aiModule.pickPlayerAi(available, {
-          ownTeamPlayers: own,
-          enemyTeamPlayers: enemy,
-          availablePlayers: available,
-          strategyKey: strat
-        });
-
-        if (picked) applyPick(teamKey, picked);
-
-        renderAll();
-
-        if (state.status === "draft") {
-          setTimeout(runAiIfNeeded, 80);
-        }
-        return;
-      }
-
-      if (mode === "human_vs_ai") {
-        const isHumanTurn = meta.team === settings.humanSide;
-        if (isHumanTurn) {
-          renderAll();
-          return;
-        }
-
-        const teamKey = meta.team;
-        const strat = teamKey === "team1" ? settings.strategyTeam1 : settings.strategyTeam2;
-        const own = teamKey === "team1" ? state.team1.players : state.team2.players;
-        const enemy = teamKey === "team1" ? state.team2.players : state.team1.players;
-
-        const picked = aiModule.pickPlayerAi(available, {
-          ownTeamPlayers: own,
-          enemyTeamPlayers: enemy,
-          availablePlayers: available,
-          strategyKey: strat
-        });
-
-        if (picked) applyPick(teamKey, picked);
-        renderAll();
-
-        // Important for "double pick" rules (e.g., Team2 picks #2 and #3):
-        // keep drafting while the current turn belongs to AI.
-        if (state.status === "draft") {
-          const nextMeta = getCurrentPickMeta();
-          if (nextMeta && nextMeta.team !== settings.humanSide) {
-            setTimeout(runAiIfNeeded, 80);
-          }
-        }
-      }
-    }
-
-    function handleAvailableClick(playerName) {
-      if (!ensureDraftStarted()) return;
-      if (state.status !== "draft") return;
-
-      const player = dataModule.getPlayerByName(playerName);
-      if (!player) return;
-
-      const meta = getCurrentPickMeta();
-      if (!meta) return;
-
-      // Manual or human turn in Human vs AI
-      if (!canHumanClickNow()) return;
-
-      applyPick(meta.team, player);
-      renderAll();
-
-      if (settings.mode === "human_vs_ai") {
-        setTimeout(runAiIfNeeded, 50);
-      }
-    }
-
     function renderDraftState() {
       const statusEl = $("offline-draft-status");
       const cap1El = $("offline-team1-captain-name");
       const cap2El = $("offline-team2-captain-name");
       const list1 = $("offline-team1-list");
       const list2 = $("offline-team2-list");
-      const orderEl = $("offline-draft-order");
 
       setText(cap1El, state.team1.captain || "—");
       setText(cap2El, state.team2.captain || "—");
 
       if (list1) {
         list1.innerHTML = "";
-        if (state.team1.captain) {
-          const li = document.createElement("li");
-          li.className = "captain-slot";
-          li.textContent = (i18nModule.getLanguage() === "en" ? "Captain: " : "Капитан: ") + state.team1.captain;
-          list1.appendChild(li);
-        }
         (state.team1.players || []).forEach((p) => {
-          if (p.name === state.team1.captain) return;
+          if (p.name === state.team1.captain) return; // captain shown above
           const li = document.createElement("li");
-          li.appendChild(document.createTextNode(p.name));
-          const right = document.createElement("span");
-          right.textContent = p.tier + " • MMR " + p.mmr + " • DPM " + p.dpm;
-          li.appendChild(right);
+          li.textContent = p.name;
           list1.appendChild(li);
         });
       }
 
       if (list2) {
         list2.innerHTML = "";
-        if (state.team2.captain) {
-          const li = document.createElement("li");
-          li.className = "captain-slot";
-          li.textContent = (i18nModule.getLanguage() === "en" ? "Captain: " : "Капитан: ") + state.team2.captain;
-          list2.appendChild(li);
-        }
         (state.team2.players || []).forEach((p) => {
-          if (p.name === state.team2.captain) return;
+          if (p.name === state.team2.captain) return; // captain shown above
           const li = document.createElement("li");
-          li.appendChild(document.createTextNode(p.name));
-          const right = document.createElement("span");
-          right.textContent = p.tier + " • MMR " + p.mmr + " • DPM " + p.dpm;
-          li.appendChild(right);
+          li.textContent = p.name;
           list2.appendChild(li);
-        });
-      }
-
-      if (orderEl) {
-        orderEl.innerHTML = "";
-        DRAFT_ORDER.forEach((step, idx) => {
-          const li = document.createElement("li");
-          const teamLabel = step.team === "team1" ? (i18nModule.getLanguage() === "en" ? "Team 1" : "Команда 1") : (i18nModule.getLanguage() === "en" ? "Team 2" : "Команда 2");
-          li.textContent = "Pick " + step.pick + ": " + teamLabel;
-          if (idx === state.currentPickIndex && state.status === "draft") {
-            li.classList.add("current");
-          }
-          orderEl.appendChild(li);
         });
       }
 
       if (statusEl) {
-        if (!state.team1.captain || !state.team2.captain) {
-          setText(statusEl, i18nModule.getLanguage() === "en"
-            ? "Select captains for both teams, build the pool, then press 'Start draft'."
+        const lang = i18nModule.getLanguage();
+        if (!hasCaptainsSelected()) {
+          setText(statusEl, lang === "en"
+            ? "Select captains for both teams, build the pool, then press Start draft."
             : "Выберите капитанов для обеих команд, наберите пул, затем нажмите «Начать драфт»."
           );
         } else if (state.status === "idle") {
-          setText(statusEl, i18nModule.getLanguage() === "en"
-            ? "Draft not started. Press 'Start draft' (or click an available player to make the first pick)."
-            : "Драфт ещё не начат. Нажмите «Начать драфт» (или кликните игрока, чтобы сделать первый пик)."
+          setText(statusEl, lang === "en"
+            ? "Draft is ready. Press Start draft to begin."
+            : "Драфт готов. Нажмите «Начать драфт», чтобы начать."
           );
         } else if (state.status === "draft") {
           const meta = getCurrentPickMeta();
           if (meta) {
-            const teamLabel = meta.team === "team1" ? (i18nModule.getLanguage() === "en" ? "Team 1" : "Команда 1") : (i18nModule.getLanguage() === "en" ? "Team 2" : "Команда 2");
-            setText(statusEl, (i18nModule.getLanguage() === "en"
-              ? "Current turn: "
-              : "Текущий ход: ") + teamLabel + ". Pick #" + meta.pick + " / " + DRAFT_ORDER.length + "."
+            const teamLabel = meta.team === "team1"
+              ? (lang === "en" ? "Team 1" : "Команда 1")
+              : (lang === "en" ? "Team 2" : "Команда 2");
+            setText(statusEl, (lang === "en" ? "Current turn: " : "Текущий ход: ")
+              + teamLabel + ". Pick #" + meta.pick + " / " + DRAFT_ORDER.length + "."
             );
           } else {
-            setText(statusEl, i18nModule.getLanguage() === "en" ? "Draft in progress." : "Драфт в процессе.");
+            setText(statusEl, lang === "en" ? "Draft in progress." : "Драфт в процессе.");
           }
         } else {
-          setText(statusEl, i18nModule.getLanguage() === "en" ? "Draft finished. You can export the result below." : "Драфт завершён. Можно экспортировать результат ниже.");
+          setText(statusEl, i18nModule.getLanguage() === "en"
+            ? "Draft finished. Export is available below."
+            : "Драфт завершён. Экспорт доступен ниже."
+          );
         }
       }
 
-      updateStartDraftControls();
+      updateStartDraftUI();
     }
 
     function renderAvailableList() {
@@ -2800,30 +2878,37 @@
       const note = $("offline-available-note");
       if (!list) return;
 
-      // Pool changes are frequent; keep the start button state in sync.
-      updateStartDraftControls();
-
       const available = getAvailablePlayers();
       list.innerHTML = "";
+
+      const meta = getCurrentPickMeta();
+      const mode = settings.mode;
+      const allowClick = canHumanClickNow();
 
       if (!available.length) {
         list.textContent = i18nModule.getLanguage() === "en"
           ? "No available players (check pool/captains/draft state)."
           : "Нет доступных игроков (проверьте пул/капитанов/состояние драфта).";
+
+        if (note) {
+          if (!hasCaptainsSelected()) {
+            setText(note, i18nModule.getLanguage() === "en" ? "Pick captains first." : "Сначала выберите капитанов.");
+          } else {
+            setText(note, i18nModule.getLanguage() === "en" ? "Add players to the pool." : "Добавьте игроков в пул.");
+          }
+        }
         return;
       }
 
-      const meta = getCurrentPickMeta();
-      const mode = settings.mode;
-
-      const allowClick = canHumanClickNow();
-
       // Sorting:
-      // - Manual: by MMR desc (as per spec)
-      // - Otherwise: by AI value for the CURRENT team turn (if draft started)
+      // - Manual: by MMR desc
+      // - Draft started: by AI value for CURRENT team turn
+      // - Draft not started: by MMR desc (simple pre-start view)
       let sorted = available.slice();
 
-      if (mode === "manual" || !meta || state.status !== "draft") {
+      const sortByMmr = (mode === "manual" || !meta || state.status !== "draft");
+
+      if (sortByMmr) {
         sorted.sort((a, b) => (b.mmr || 0) - (a.mmr || 0));
       } else {
         const teamKey = meta.team;
@@ -2840,6 +2925,7 @@
           });
           return { player: p, value: r.value };
         });
+
         scored.sort((a, b) => b.value - a.value);
         sorted = scored.map((x) => x.player);
       }
@@ -2847,8 +2933,10 @@
       if (note) {
         if (mode === "manual") {
           setText(note, i18nModule.getLanguage() === "en" ? "Sorted by MMR (Manual mode)." : "Сортировка по MMR (Manual).");
+        } else if (state.status !== "draft") {
+          setText(note, i18nModule.getLanguage() === "en" ? "Draft not started yet. Sorted by MMR." : "Драфт ещё не начат. Сортировка по MMR.");
         } else {
-          setText(note, i18nModule.getLanguage() === "en" ? "Sorted by AI value for the current turn." : "Сортировка по value ИИ для текущего хода.");
+          setText(note, i18nModule.getLanguage() === "en" ? "Sorted by AI value for the current turn." : "Сортировка по value ИИ для текущего хода." );
         }
       }
 
@@ -2856,7 +2944,7 @@
         const row = document.createElement("div");
         row.className = "players-list-item";
 
-        if (!allowClick && mode !== "manual") {
+        if (!allowClick) {
           row.classList.add("disabled");
         }
 
@@ -2878,7 +2966,7 @@
         const score = document.createElement("span");
         score.className = "players-list-item-score";
 
-        if (mode === "manual" || !meta || state.status !== "draft") {
+        if (sortByMmr) {
           score.textContent = "MMR " + p.mmr;
         } else {
           const teamKey = meta.team;
@@ -2928,7 +3016,7 @@
       if (plan1) plan1.innerHTML = "";
       if (plan2) plan2.innerHTML = "";
 
-      if (!ensureDraftStarted()) {
+      if (!hasCaptainsSelected()) {
         if (hintsNote) {
           setText(hintsNote, i18nModule.getLanguage() === "en"
             ? "Hints will appear after selecting captains and enabling a player pool."
@@ -2940,13 +3028,16 @@
 
       const available = getAvailablePlayers();
       if (!available.length) {
-        if (hintsNote) setText(hintsNote, "");
+        if (hintsNote) {
+          setText(hintsNote, i18nModule.getLanguage() === "en"
+            ? "Add players to the pool to get hints."
+            : "Добавьте игроков в пул, чтобы увидеть подсказки."
+          );
+        }
         return;
       }
 
       const showPlanning = !!settings.showPlanning;
-      const aiSettings = dataModule.getAiSettings();
-      const hintsCfg = aiSettings.formula.hints || {};
 
       // Team1 context
       const ctx1 = {
@@ -2968,22 +3059,20 @@
       const showTeam1 = (mode !== "human_vs_ai") || (settings.humanSide === "team1") || !!showOpp;
       const showTeam2 = (mode !== "human_vs_ai") || (settings.humanSide === "team2") || !!showOpp;
 
-      // Recommendations
       if (showTeam1) {
         const rec1 = aiModule.getRecommendations(available, ctx1);
-        renderHintPanel(hint1Best, hint1Alts, rec1, "team1");
+        renderHintPanel(hint1Best, hint1Alts, rec1);
       } else {
         if (hint1Best) hint1Best.textContent = i18nModule.getLanguage() === "en" ? "Hidden (Human vs AI)" : "Скрыто (Human vs AI)";
       }
 
       if (showTeam2) {
         const rec2 = aiModule.getRecommendations(available, ctx2);
-        renderHintPanel(hint2Best, hint2Alts, rec2, "team2");
+        renderHintPanel(hint2Best, hint2Alts, rec2);
       } else {
         if (hint2Best) hint2Best.textContent = i18nModule.getLanguage() === "en" ? "Hidden (Human vs AI)" : "Скрыто (Human vs AI)";
       }
 
-      // Planning (long plan) for each team
       if (showPlanning) {
         if (plan1 && showTeam1) {
           const planObj = aiModule.simulatePlan(buildDraftStateSnapshot(), settings.mode, "team1");
@@ -3003,19 +3092,19 @@
           );
         } else if (mode === "human_vs_ai") {
           setText(hintsNote, i18nModule.getLanguage() === "en"
-            ? "Human vs AI: hints are optimized for the selected strategies. Tier/MMR dominate by default."
-            : "Human vs AI: подсказки строятся по выбранным стратегиям. Tier/MMR доминируют по умолчанию."
+            ? "Human vs AI: hints reflect chosen strategies."
+            : "Human vs AI: подсказки отражают выбранные стратегии."
           );
         } else {
           setText(hintsNote, i18nModule.getLanguage() === "en"
-            ? "AI vs AI: AI plays both sides. Hints reflect current evaluation and planning."
-            : "AI vs AI: ИИ играет за обе стороны. Подсказки отражают оценку и планирование."
+            ? "AI vs AI: AI plays both sides."
+            : "AI vs AI: ИИ играет за обе стороны."
           );
         }
       }
     }
 
-    function renderHintPanel(bestEl, altsEl, rec, teamKey) {
+    function renderHintPanel(bestEl, altsEl, rec) {
       if (!bestEl || !altsEl) return;
       bestEl.innerHTML = "";
       altsEl.innerHTML = "";
@@ -3059,7 +3148,6 @@
       title.textContent = i18nModule.getLanguage() === "en" ? "Plan & composition progress" : "План и прогресс состава";
       container.appendChild(title);
 
-      // Composition progress
       const stratKey = teamKey === "team1" ? settings.strategyTeam1 : settings.strategyTeam2;
       const strat = aiModule.getStrategyByKey(stratKey);
 
@@ -3117,15 +3205,16 @@
 
       lines.push("Team 1 (captain: " + (state.team1.captain || "—") + "):");
       (state.team1.players || []).forEach((p) => {
-        const roles = (p.roles || []).join(", ");
-        lines.push("- " + p.name + " [" + p.tier + "] (MMR " + p.mmr + ", DPM " + p.dpm + ", roles: " + roles + ")");
+        if (p.name === state.team1.captain) return;
+        // export without heavy details
+        lines.push("- " + p.name + " [" + p.tier + "]");
       });
       lines.push("");
 
       lines.push("Team 2 (captain: " + (state.team2.captain || "—") + "):");
       (state.team2.players || []).forEach((p) => {
-        const roles = (p.roles || []).join(", ");
-        lines.push("- " + p.name + " [" + p.tier + "] (MMR " + p.mmr + ", DPM " + p.dpm + ", roles: " + roles + ")");
+        if (p.name === state.team2.captain) return;
+        lines.push("- " + p.name + " [" + p.tier + "]");
       });
       lines.push("");
 
@@ -3143,12 +3232,14 @@
 
       if (finishBtn) {
         finishBtn.addEventListener("click", function () {
-          state.status = "finished";
+          // Allow manual finishing
+          if (state.status !== "finished") {
+            state.status = "finished";
+            saveDraftLocal();
+          }
           generateExportText();
-          renderDraftState();
-          renderAvailableList();
-          renderHintsAndPlanning();
-          saveDraftLocal();
+          setExportDetailsOpen(true);
+          renderAll();
           setText(statusEl, i18nModule.getLanguage() === "en" ? "Draft finished. Export generated." : "Драфт завершён. Экспорт сформирован.");
         });
       }
@@ -3175,11 +3266,26 @@
       }
     }
 
+    function initStartDraftButton() {
+      const btn = $("offline-start-draft-btn");
+      if (btn) {
+        btn.addEventListener("click", handleStartDraftClick);
+      }
+    }
+
     function renderAll() {
+      // Export stage is auto-collapsed until finished
+      if (state.status === "finished") {
+        setExportDetailsOpen(true);
+      } else {
+        setExportDetailsOpen(false);
+      }
+
       renderDraftState();
       renderPoolTable();
       renderAvailableList();
       renderHintsAndPlanning();
+      updateStartDraftUI();
     }
 
     function init() {
@@ -3192,17 +3298,25 @@
       initSettingsUI();
       renderCaptainsSelectors();
       initPoolControls();
-      initStartDraftControls();
       initExportControls();
+      initStartDraftButton();
+
+      // If we resume a started/finished draft, collapse setup by default
+      if (state.status !== "idle") {
+        setSetupDetailsOpen(false);
+      } else {
+        setSetupDetailsOpen(true);
+      }
 
       renderAll();
 
-      // Draft is started explicitly via the "Start draft" button
-      // (or by clicking an available player in modes where human clicking is allowed).
+      // Resume AI loop if we reload mid-draft
+      if (state.status === "draft") {
+        scheduleAiLoop(120);
+      }
     }
 
     function onStrategiesUpdated() {
-      // refill selects
       const s1 = $("offline-strategy-team1-select");
       const s2 = $("offline-strategy-team2-select");
       const keys = aiModule.getStrategyKeyListSafe();
@@ -3239,7 +3353,6 @@
       }
     };
   })();
-
   // ------------------------------------------------------
   // --- playersModule: CRUD игроков
   // ------------------------------------------------------
