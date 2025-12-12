@@ -215,6 +215,7 @@
         "offline.strategyTeam2Label": "Стратегия Team2",
         "offline.resetDraft": "Сбросить драфт",
         "offline.resetAll": "Сбросить всё (пул+капитаны)",
+        "offline.startDraft": "Начать драфт",
         "offline.showPlanning": "Показывать дальний план",
         "offline.captainsTitle": "Капитаны",
         "offline.captain1Search": "Поиск капитана 1",
@@ -391,6 +392,7 @@
         "offline.strategyTeam2Label": "Strategy Team2",
         "offline.resetDraft": "Reset draft",
         "offline.resetAll": "Reset all (pool + captains)",
+        "offline.startDraft": "Start draft",
         "offline.showPlanning": "Show long plan",
         "offline.captainsTitle": "Captains",
         "offline.captain1Search": "Captain 1 search",
@@ -2494,6 +2496,101 @@
       return false;
     }
 
+    function getStartDraftReadiness() {
+      // Draft requires both captains and enough candidates in pool to complete 8 picks.
+      // (Captains are not picks; DRAFT_ORDER contains only non-captain picks.)
+      const need = DRAFT_ORDER.length;
+      if (!state.team1.captain || !state.team2.captain) {
+        return { ok: false, reason: "captains", need: need, have: 0 };
+      }
+      if (state.status !== "idle") {
+        return { ok: false, reason: state.status, need: need, have: 0 };
+      }
+      const have = getAvailablePlayers().length;
+      if (have < need) {
+        return { ok: false, reason: "pool", need: need, have: have };
+      }
+      return { ok: true, reason: "ok", need: need, have: have };
+    }
+
+    function updateStartDraftControls() {
+      const btn = $("offline-start-draft-btn");
+      const hintEl = $("offline-start-draft-hint");
+      if (!btn) return;
+
+      const r = getStartDraftReadiness();
+      btn.disabled = !r.ok;
+
+      if (!hintEl) return;
+
+      if (r.ok) {
+        setText(hintEl, i18nModule.getLanguage() === "en"
+          ? "Ready to start."
+          : "Готово к старту."
+        );
+        return;
+      }
+
+      if (r.reason === "captains") {
+        setText(hintEl, i18nModule.getLanguage() === "en"
+          ? "Select captains for both teams."
+          : "Выберите капитанов для обеих команд."
+        );
+        return;
+      }
+
+      if (r.reason === "pool") {
+        setText(hintEl, i18nModule.getLanguage() === "en"
+          ? "Add at least " + r.need + " players to the pool (currently " + r.have + ")."
+          : "Добавьте в пул минимум " + r.need + " игроков (сейчас " + r.have + ")."
+        );
+        return;
+      }
+
+      if (r.reason === "draft") {
+        setText(hintEl, i18nModule.getLanguage() === "en"
+          ? "Draft is already running."
+          : "Драфт уже идёт."
+        );
+        return;
+      }
+
+      if (r.reason === "finished") {
+        setText(hintEl, i18nModule.getLanguage() === "en"
+          ? "Draft is finished. Use 'Reset draft' to start over."
+          : "Драфт завершён. Чтобы начать заново, нажмите «Сбросить драфт»."
+        );
+        return;
+      }
+
+      setText(hintEl, "");
+    }
+
+    function initStartDraftControls() {
+      const btn = $("offline-start-draft-btn");
+      if (!btn) return;
+
+      btn.addEventListener("click", function () {
+        const r = getStartDraftReadiness();
+        if (!r.ok) {
+          updateStartDraftControls();
+          return;
+        }
+
+        if (!ensureDraftStarted()) {
+          updateStartDraftControls();
+          return;
+        }
+
+        renderAll();
+
+        // If AI needs to pick first (or it is AI vs AI), kick the AI loop.
+        if (settings.mode !== "manual") {
+          setTimeout(runAiIfNeeded, 50);
+        }
+      });
+    }
+
     function runAiIfNeeded() {
       if (!ensureDraftStarted()) return;
 
@@ -2513,6 +2610,18 @@
         if (state.currentPickIndex >= DRAFT_ORDER.length) state.status = "finished";
         saveDraftLocal();
         renderAll();
+
+        // If the next pick is also AI-controlled, continue the AI loop so the draft doesn't stall.
+        if (state.status === "draft") {
+          if (mode === "ai_vs_ai") {
+            setTimeout(runAiIfNeeded, 80);
+          } else if (mode === "human_vs_ai") {
+            const nextMeta = getCurrentPickMeta();
+            if (nextMeta && nextMeta.team !== settings.humanSide) {
+              setTimeout(runAiIfNeeded, 80);
+            }
+          }
+        }
         return;
       }
 
@@ -2561,6 +2670,15 @@
 
         if (picked) applyPick(teamKey, picked);
         renderAll();
+
+        // Important for "double pick" rules (e.g., Team2 picks #2 and #3):
+        // keep drafting while the current turn belongs to AI.
+        if (state.status === "draft") {
+          const nextMeta = getCurrentPickMeta();
+          if (nextMeta && nextMeta.team !== settings.humanSide) {
+            setTimeout(runAiIfNeeded, 80);
+          }
+        }
       }
     }
 
@@ -2650,13 +2768,13 @@
       if (statusEl) {
         if (!state.team1.captain || !state.team2.captain) {
           setText(statusEl, i18nModule.getLanguage() === "en"
-            ? "Select captains for both teams, build the pool, then start drafting (click an available player)."
-            : "Выберите капитанов для обеих команд, наберите пул, затем начните драфт (клик по доступному игроку)."
+            ? "Select captains for both teams, build the pool, then press 'Start draft'."
+            : "Выберите капитанов для обеих команд, наберите пул, затем нажмите «Начать драфт»."
           );
         } else if (state.status === "idle") {
           setText(statusEl, i18nModule.getLanguage() === "en"
-            ? "Draft not started. Clicking an available player will make the first pick."
-            : "Драфт ещё не начат. Клик по доступному игроку выполнит первый пик."
+            ? "Draft not started. Press 'Start draft' (or click an available player to make the first pick)."
+            : "Драфт ещё не начат. Нажмите «Начать драфт» (или кликните игрока, чтобы сделать первый пик)."
           );
         } else if (state.status === "draft") {
           const meta = getCurrentPickMeta();
@@ -2673,12 +2791,17 @@
           setText(statusEl, i18nModule.getLanguage() === "en" ? "Draft finished. You can export the result below." : "Драфт завершён. Можно экспортировать результат ниже.");
         }
       }
+
+      updateStartDraftControls();
     }
 
     function renderAvailableList() {
       const list = $("offline-available-list");
       const note = $("offline-available-note");
       if (!list) return;
+
+      // Pool changes are frequent; keep the start button state in sync.
+      updateStartDraftControls();
 
       const available = getAvailablePlayers();
       list.innerHTML = "";
@@ -3069,14 +3192,13 @@
       initSettingsUI();
       renderCaptainsSelectors();
       initPoolControls();
+      initStartDraftControls();
       initExportControls();
 
       renderAll();
 
-      if (settings.mode === "ai_vs_ai") {
-        // Start AI loop automatically if possible
-        setTimeout(runAiIfNeeded, 100);
-      }
+      // Draft is started explicitly via the "Start draft" button
+      // (or by clicking an available player in modes where human clicking is allowed).
     }
 
     function onStrategiesUpdated() {

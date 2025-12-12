@@ -199,8 +199,8 @@
     ]
   },
   {
-    "name": "Rigass",
-    "tier": "B",
+    "name": "PanRigass",
+    "tier": "A",
     "mmr": 1500,
     "dpm": 18000,
     "roles": [
