@@ -190,8 +190,6 @@
 
         "menu.title": "Главное меню",
         "menu.welcomeTitle": "MoW2 Draft Project — V15.0",
-        "menu.welcomeSubtitle": "Оффлайн режим. Все настройки меняются через интерфейс и сохраняются локально.",
-        "menu.imageHint": "Здесь можно загрузить рофляную картинку в разделе «Внешний вид».",
         "menu.offlineDraft": "Оффлайн драфт",
         "menu.offlineDraftDesc": "Human vs AI / AI vs AI / Manual",
         "menu.players": "Игроки и статистика",
@@ -368,8 +366,6 @@
 
         "menu.title": "Main Menu",
         "menu.welcomeTitle": "MoW2 Draft Project — V15.0",
-        "menu.welcomeSubtitle": "Offline mode. All settings are editable via UI and stored locally.",
-        "menu.imageHint": "You can upload a funny image in the “Appearance” section.",
         "menu.offlineDraft": "Offline Draft",
         "menu.offlineDraftDesc": "Human vs AI / AI vs AI / Manual",
         "menu.players": "Players & Stats",
